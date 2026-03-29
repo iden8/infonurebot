@@ -1,20 +1,11 @@
-# InfoNureBot
-
 <div align="center">
 
-# InfoNure Bot
-[![License](https://img.shields.io/badge/License-All_Rights_Reserved-red.svg?style=for-the-badge)](LICENSE)
+# InfoNureBot
 [![Java](https://img.shields.io/badge/Java-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)](https://www.oracle.com/java/)
 [![Spring Boot](https://img.shields.io/badge/Spring_Boot-6DB33F?style=for-the-badge&logo=spring-boot&logoColor=white)](https://spring.io/projects/spring-boot)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 
 ---
-
-### Stats
-![Stars](https://img.shields.io/github/stars/iden8/infonurebot?style=flat-square&color=gold)
-![Forks](https://img.shields.io/github/forks/iden8/infonurebot?style=flat-square&color=blue)
-![Issues](https://img.shields.io/github/issues/iden8/infonurebot?style=flat-square&color=red)
-![Last Commit](https://img.shields.io/github/last-commit/iden8/infonurebot?style=flat-square)
 
 </div>
 
