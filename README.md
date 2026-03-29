@@ -82,4 +82,8 @@ spring.datasource.password=your_password
 ./mvnw clean install
 ./mvnw spring-boot:run
 
+## ⚖️ Licensing & Commercial Use
+
+* **Commercial Use:** This software is **NOT open-source**. All rights are reserved. If you are interested in using this project for commercial purposes or purchasing the full version, please contact me directly at isvlalev@gmail.com or t.me/iden89.
+
 Copyright (c) 2025 Vladyslav Sheveliev, https://github.com/iden8. All rights reserved.
