@@ -1,6 +1,15 @@
-# InfoNureBot
+<div align="center">
 
-[🇺🇦 Читати українською](README.ua.md)
+# InfoNureBot
+[![Java](https://img.shields.io/badge/Java-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)](https://www.oracle.com/java/)
+[![Spring Boot](https://img.shields.io/badge/Spring_Boot-6DB33F?style=for-the-badge&logo=spring-boot&logoColor=white)](https://spring.io/projects/spring-boot)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+
+---
+
+</div>
+
+[🇺🇦 Читати українською](readme.ua.md)
 
 **InfoNureBot** is a multi-functional Telegram bot designed for students of Kharkiv National University of Radio Electronics (NURE). The bot provides convenient access to class schedules (integrated with CIST) and the NURE Distance Learning system (Moodle API), as well as tools for student chat administration.
 
@@ -81,5 +90,9 @@ spring.datasource.password=your_password
 4. Build and Run (Maven):
 ./mvnw clean install
 ./mvnw spring-boot:run
+
+## Licensing & Commercial Use
+
+**Commercial Use:** This software is **NOT open-source**. All rights are reserved. If you are interested in using this project for commercial purposes or purchasing the full version, please contact me directly at isvlalev@gmail.com or t.me/iden89.
 
 Copyright (c) 2025 Vladyslav Sheveliev, https://github.com/iden8. All rights reserved.
