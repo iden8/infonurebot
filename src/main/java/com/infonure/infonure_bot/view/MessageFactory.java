@@ -58,7 +58,7 @@ public class MessageFactory {
         for (String part : messageParts) {
             messages.add(buildMessage(chatId, part, null, effectiveParseMode, null));
         }
-        return messages; //повертає список повідомлень
+        return messages;
     }
 
     public List<SendMessage> createLongMessage(Long chatId, String text) {

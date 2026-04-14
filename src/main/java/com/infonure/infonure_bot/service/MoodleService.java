@@ -58,7 +58,7 @@ public class MoodleService {
                 }
             }
         } catch (Exception e) {
-            log.error("Помилка підключення до DL: {}", e.getMessage());
+            log.error("DL connection error: {}", e.getMessage());
         }
         return null;
     }
@@ -76,7 +76,7 @@ public class MoodleService {
                 }
             }
         } catch (Exception e) {
-            log.error("Помилка отримання Moodle User ID: {}", e.getMessage());
+            log.error("Error obtaining Moodle User ID: {}", e.getMessage());
         }
         return null;
     }
@@ -108,7 +108,6 @@ public class MoodleService {
                         long courseId = course.get("id").getAsLong();
                         String fullName = course.get("fullname").getAsString();
 
-                        // Відкидаємо системні сміттєві курси
                         if (!fullName.toLowerCase().contains("курси, розроблені")) {
                             courses.put(courseId, fullName);
                             count++;
@@ -118,7 +117,7 @@ public class MoodleService {
                 }
             }
         } catch (Exception e) {
-            log.error("Помилка отримання курсів: {}", e.getMessage());
+            log.error("Error retrieving course information: {}", e.getMessage());
         }
         return courses;
     }
@@ -166,7 +165,7 @@ public class MoodleService {
                 }
             }
         } catch (Exception e) {
-            log.error("Помилка отримання оцінок: {}", e.getMessage());
+            log.error("Error retrieving grades: {}", e.getMessage());
         }
         return "Не вдалося отримати оцінки. Можливо, сесія застаріла.";
     }
@@ -234,8 +233,92 @@ public class MoodleService {
                 }
             }
         } catch (Exception e) {
-            log.error("Помилка отримання дедлайнів: {}", e.getMessage());
+            log.error("Error retrieving deadlines: {}", e.getMessage());
         }
         return "Не вдалося отримати дедлайни. Можливо, сесія застаріла. Спробуйте /dl_login";
+    }
+
+    public void processAutoAttendanceForUser(String token, Long moodleUserId) {
+        Map<Long, String> courses = getUserCourses(token, moodleUserId);
+
+        for (Map.Entry<Long, String> entry : courses.entrySet()) {
+            Long courseId = entry.getKey();
+            String courseName = entry.getValue();
+
+            try {
+                String url = String.format(
+                        "https://dl.nure.ua/webservice/rest/server.php?wstoken=%s&wsfunction=mod_attendance_get_sessions&moodlewsrestformat=json&courseid=%d",
+                        token, courseId
+                );
+
+                HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
+                HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+                if (response.statusCode() == 200) {
+                    JsonElement rootElem = JsonParser.parseString(response.body());
+
+                    if (rootElem.isJsonObject() && rootElem.getAsJsonObject().has("exception")) {
+                        continue;
+                    }
+
+                    JsonArray sessions = new JsonArray();
+                    if (rootElem.isJsonArray()) {
+                        sessions = rootElem.getAsJsonArray();
+                    } else if (rootElem.isJsonObject() && rootElem.getAsJsonObject().has("sessions")) {
+                        sessions = rootElem.getAsJsonObject().getAsJsonArray("sessions");
+                    }
+
+                    for (JsonElement sessionElem : sessions) {
+                        JsonObject session = sessionElem.getAsJsonObject();
+
+                        if (session.has("studentscanmark") && session.get("studentscanmark").getAsBoolean()) {
+                            long sessionId = session.get("id").getAsLong();
+                            long presentStatusId = -1;
+
+                            if (session.has("statuses")) {
+                                JsonArray statuses = session.getAsJsonArray("statuses");
+                                for (JsonElement statusElem : statuses) {
+                                    JsonObject status = statusElem.getAsJsonObject();
+                                    if (status.has("acronym")) {
+                                        String acronym = status.get("acronym").getAsString().toUpperCase();
+                                        if (acronym.equals("П") || acronym.equals("P")) {
+                                            presentStatusId = status.get("id").getAsLong();
+                                            break;
+                                        }
+                                    }
+                                }
+                                if (presentStatusId == -1 && !statuses.isEmpty()) {
+                                    presentStatusId = statuses.get(0).getAsJsonObject().get("id").getAsLong();
+                                }
+                            }
+
+                            if (presentStatusId != -1) {
+                                sendAttendanceRequest(token, sessionId, moodleUserId, presentStatusId, courseName);
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Attendance check error for course {} (User {}): {}", courseId, moodleUserId, e.getMessage());
+            }
+        }
+    }
+
+    private void sendAttendanceRequest(String token, Long sessionId, Long studentId, Long statusId, String courseName) {
+        try {
+            String url = String.format(
+                    "https://dl.nure.ua/webservice/rest/server.php?wstoken=%s&wsfunction=mod_attendance_update_user_status&moodlewsrestformat=json&sessionid=%d&studentid=%d&statusid=%d",
+                    token, sessionId, studentId, statusId
+            );
+
+            HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 200) {
+                log.info("Student ID {} was automatically marked as present at '{}' (Session: {})", studentId, courseName, sessionId);
+            }
+        } catch (Exception e) {
+            log.error("Failed to send student attendance mark: {}", e.getMessage());
+        }
     }
 }

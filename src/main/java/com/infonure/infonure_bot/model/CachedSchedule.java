@@ -16,19 +16,15 @@ public class CachedSchedule {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // ID з системи CIST (наприклад, 1234567 для твоєї групи)
     @Column(name = "cist_entity_id", nullable = false, unique = true)
     private Long cistEntityId;
 
-    // Тип: 1 - Група, 2 - Викладач, 3 - Аудиторія
     @Column(name = "type_id", nullable = false)
     private Integer typeId;
 
-    // Зберігаємо весь розклад на семестр як текст (JSON)
     @Column(name = "json_data", columnDefinition = "TEXT")
     private String jsonData;
 
-    // Коли ми останній раз оновлювали цей розклад з серверів ХНУРЕ
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 

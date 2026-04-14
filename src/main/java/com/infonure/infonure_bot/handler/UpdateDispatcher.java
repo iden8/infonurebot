@@ -68,10 +68,10 @@ public class UpdateDispatcher {
                 callbackQueryHandler.handleCallbackQuery(update.getCallbackQuery(), responses);
             }
         } catch (Exception e) {
-            log.error("Помилка обробки Update: {}", e.getMessage(), e);
+            log.error("Error processing updates from Telegram: {}", e.getMessage(), e);
             Long chatIdForError = getChatIdFromUpdate(update);
             if (chatIdForError != null) {
-                responses.add(messageFactory.createMessage(chatIdForError, "Виникла помилка під час обробки вашого запиту."));
+                responses.add(messageFactory.createMessage(chatIdForError, "An error occurred while processing your request."));
             }
         }
         return responses;
@@ -145,7 +145,7 @@ public class UpdateDispatcher {
         if (botCommand != null) {
             botCommand.execute(message, commandArgs, responses);
         } else {
-            responses.add(messageFactory.createMessage(message.getChatId(), "Невідома команда."));
+            responses.add(messageFactory.createMessage(message.getChatId(), "Unknown command."));
         }
     }
 }

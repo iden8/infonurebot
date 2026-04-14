@@ -7,6 +7,7 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKe
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Component
 public class KeyboardFactory {
@@ -73,11 +74,9 @@ public class KeyboardFactory {
             InlineKeyboardButton button = new InlineKeyboardButton();
 
             String courseName = entry.getValue();
-            // Обрізаємо занадто довгі назви, щоб кнопки виглядали охайно
             if (courseName.length() > 40) courseName = courseName.substring(0, 37) + "...";
 
             button.setText(courseName);
-            // У callback_data передаємо префікс і ID курсу (наприклад, DL_GRADE_1234)
             button.setCallbackData("DL_GRADE_" + entry.getKey());
 
             row.add(button);
@@ -86,5 +85,39 @@ public class KeyboardFactory {
 
         inlineKeyboardMarkup.setKeyboard(rowsInline);
         return inlineKeyboardMarkup;
+    }
+
+    public InlineKeyboardMarkup getBroadcastAudienceKeyboard() {
+        InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+
+        rows.add(List.of(createButton("Всім студентам", "AD_AUDIENCE_ALL")));
+        rows.add(List.of(createButton("По факультету", "AD_AUDIENCE_FACULTY_LIST")));
+        rows.add(List.of(createButton("Конкретній групі", "AD_AUDIENCE_GROUP")));
+        rows.add(List.of(createButton("Скасувати", "ADT_CANCEL")));
+
+        markup.setKeyboard(rows);
+        return markup;
+    }
+
+    public InlineKeyboardMarkup getFacultiesKeyboard(Set<String> faculties) {
+        InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+
+        for (String faculty : faculties) {
+            String shortData = "AD_F_" + Math.abs(faculty.hashCode());
+            rows.add(List.of(createButton(faculty, shortData)));
+        }
+        rows.add(List.of(createButton("« Назад", "AD_AUDIENCE_BACK")));
+
+        markup.setKeyboard(rows);
+        return markup;
+    }
+
+    private InlineKeyboardButton createButton(String text, String data) {
+        InlineKeyboardButton b = new InlineKeyboardButton();
+        b.setText(text);
+        b.setCallbackData(data);
+        return b;
     }
 }

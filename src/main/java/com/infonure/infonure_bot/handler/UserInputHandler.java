@@ -93,11 +93,10 @@ public class UserInputHandler {
                 }
                 break;
             case AWAITING_ADVERTISEMENT:
-                Long targetChatIdForAd = userStateService.getAwaitingAdChatId(userId);
-                if (targetChatIdForAd != null && this.adminIds.contains(userId)) {
-                    handleAdvertisementInput(userId, targetChatIdForAd, message, responses);
+                if (this.adminIds.contains(userId)) {
+                    handleAdvertisementInput(userId, chatId, message, responses);
                 } else {
-                    responses.add(messageFactory.createMessage(chatId, "Помилка. Не вдалося відправити оголошення."));
+                    responses.add(messageFactory.createMessage(chatId, "Ви не маєте прав адміністратора для розсилки."));
                     userStateService.clearState(userId);
                 }
                 break;
@@ -112,6 +111,25 @@ public class UserInputHandler {
                 break;
             case AWAITING_DL_PASSWORD:
                 handleDlPasswordInput(userId, chatId, text, responses);
+                break;
+            case AWAITING_TARGET_GROUP_NAME:
+                String targetGroup = text.toUpperCase().trim();
+
+                if (scheduleService.getAllAvailableGroups().contains(targetGroup)) {
+
+                    boolean hasRegistered = userRepository.existsByGroupCodeIgnoreCase(targetGroup);
+
+                    if (hasRegistered) {
+                        userStateService.setTargetBroadcastAudience(userId, "GROUP:" + targetGroup);
+                        userStateService.setState(userId, UserState.AWAITING_ADVERTISEMENT);
+                        responses.add(messageFactory.createMessage(chatId, "Введіть текст оголошення для " + targetGroup + ":"));
+                    } else {
+                        responses.add(messageFactory.createMessage(chatId,
+                                "Ця група є в розкладі, але в даному боті не зареєстровано жодного користувача чи чату з такою групою.\nСпробуйте іншу групу або /cancel:"));
+                    }
+                } else {
+                    responses.add(messageFactory.createMessage(chatId, "Групу не знайдено в базі університету. Спробуйте ще раз або /cancel:"));
+                }
                 break;
             default:
                 if (currentState != UserState.IDLE) {
@@ -221,17 +239,36 @@ public class UserInputHandler {
     }
 
     private void handleAdvertisementInput(Long userId, Long originalChatId, Message message, List<BotApiMethod<?>> responses) {
+        String audience = userStateService.getTargetBroadcastAudience(userId);
         userStateService.clearState(userId);
 
-        List<Long> allUserIds = userService.getAllUserIds();
-        List<Long> allGroupChatIds = userService.getAllGroupChatIdsWithAcademicGroup();
-        Set<Long> uniqueChatIds = new HashSet<>(allUserIds);
-        uniqueChatIds.addAll(allGroupChatIds);
+        List<com.infonure.infonure_bot.model.User> allUsers = userRepository.findAll();
+        Set<Long> targetIds = new HashSet<>();
 
-        uniqueChatIds.removeIf(id -> Objects.equals(id, userId) || userService.isEntityBanned(id));
+        Set<String> facultyGroups = null;
+        if (audience.startsWith("FACULTY:")) {
+            facultyGroups = scheduleService.getGroupsByFaculty(audience.split(":")[1]);
+        }
+        for (com.infonure.infonure_bot.model.User u : allUsers) {
+            if (u.getId().equals(userId)) continue;
 
-        broadcastService.startBroadcast(originalChatId, message.getMessageId(), message.hasPoll(), uniqueChatIds);
-        responses.add(messageFactory.createMessage(originalChatId, "🚀 Розсилка запущена у фоновому режимі. Бот готовий до подальшої роботи."));
+            boolean matches = false;
+            String userGroup = u.getGroupCode();
+
+            if ("ALL".equals(audience)) {
+                matches = true;
+            } else if (audience.startsWith("FACULTY:") && userGroup != null && facultyGroups != null) {
+                matches = facultyGroups.contains(userGroup);
+            } else if (audience.startsWith("GROUP:") && userGroup != null) {
+                String group = audience.split(":")[1];
+                matches = group.equalsIgnoreCase(userGroup);
+            }
+
+            if (matches) targetIds.add(u.getId());
+        }
+
+        broadcastService.startBroadcast(originalChatId, message.getMessageId(), message.hasPoll(), targetIds);
+        responses.add(messageFactory.createMessage(originalChatId, "Розсилка запущена для: " + audience));
     }
 
     private void handleReportInput(Long userId, Message message, List<BotApiMethod<?>> responses) {
@@ -246,7 +283,7 @@ public class UserInputHandler {
         }
 
         StringBuilder reportDetails = new StringBuilder();
-        reportDetails.append("🚨 НОВИЙ РЕПОРТ\n\n");
+        reportDetails.append("НОВИЙ РЕПОРТ\n\n");
         reportDetails.append("Від: ");
         if (sender.getUserName() != null && !sender.getUserName().isEmpty()) {
             reportDetails.append("@").append(sender.getUserName());
@@ -274,7 +311,7 @@ public class UserInputHandler {
 
                 adminsNotified++;
             } catch (Exception e) {
-                log.warn("Не вдалося надіслати репорт адміну {}: {}", adminId, e.getMessage());
+                log.warn("Unable to send the report to the admin {}: {}", adminId, e.getMessage());
             }
         }
 
@@ -307,7 +344,7 @@ public class UserInputHandler {
 
             responses.add(messageFactory.createMessage(chatId, "Надіслано."));
         } catch (Exception e) {
-            log.warn("Не вдалося надіслати відповідь користувачу {}: {}", targetId, e.getMessage());
+            log.warn("Unable to send a reply to the user {}: {}", targetId, e.getMessage());
             responses.add(messageFactory.createMessage(chatId, "Не вдалося надіслати."));
         }
     }

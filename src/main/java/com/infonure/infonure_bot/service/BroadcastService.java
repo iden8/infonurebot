@@ -20,7 +20,6 @@ public class BroadcastService {
     private final InfoNureBot bot;
     private final MessageFactory messageFactory;
 
-    // Використовуємо @Lazy для InfoNureBot, щоб уникнути циклічної залежності
     public BroadcastService(@Lazy InfoNureBot bot, MessageFactory messageFactory) {
         this.bot = bot;
         this.messageFactory = messageFactory;
@@ -45,17 +44,32 @@ public class BroadcastService {
                 // Пауза 50 мс, щоб не перевищити ліміт Telegram (30 повідомлень на секунду)
                 Thread.sleep(50);
             } catch (TelegramApiException e) {
-                log.warn("Не вдалося надіслати повідомлення {}: {}", targetId, e.getMessage());
+                log.warn("The message could not be sent {}: {}", targetId, e.getMessage());
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                log.error("Розсилку перервано");
+                log.error("The broadcast has been suspended");
                 break;
             }
         }
 
-        // Відправляємо звіт адміну
         try {
             bot.execute(messageFactory.createMessage(originalChatId, "Розсилку завершено. Доставлено: " + successCount));
         } catch (TelegramApiException ignored) {}
+    }
+
+    @Async
+    public void sendSystemTextBroadcast(Set<Long> targetIds, String text) {
+        log.info("Починаю системну розсилку на {} чатів...", targetIds.size());
+        for (Long targetId : targetIds) {
+            try {
+                bot.execute(messageFactory.createMessage(targetId, text, "Markdown"));
+                Thread.sleep(50); // Зберігаємо захист від лімітів Telegram
+            } catch (TelegramApiException e) {
+                log.warn("Не вдалося надіслати системне повідомлення {}: {}", targetId, e.getMessage());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
     }
 }

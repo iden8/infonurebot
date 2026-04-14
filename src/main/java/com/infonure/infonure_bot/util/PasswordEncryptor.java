@@ -12,10 +12,15 @@ public class PasswordEncryptor implements AttributeConverter<String, String> {
 
     private static final String ALGORITHM = "AES";
 
-    // СЕКРЕТНИЙ КЛЮЧ: Має бути рівно 16, 24 або 32 символи!
-    // Увага: Ніколи не змінюй цей ключ після того, як в базі з'являться перші паролі,
-    // інакше ти не зможеш їх розшифрувати.
-    private static final byte[] KEY = "InfonureSuperKey".getBytes();
+    private static final byte[] KEY;
+
+    static {
+        String secretKey = System.getenv("ENCRYPTION_KEY");
+        if (secretKey == null || secretKey.trim().isEmpty()) {
+            throw new IllegalStateException("The ENCRYPTION_KEY key was not found");
+        }
+        KEY = secretKey.getBytes();
+    }
 
     @Override
     public String convertToDatabaseColumn(String originalPassword) {
@@ -28,7 +33,7 @@ public class PasswordEncryptor implements AttributeConverter<String, String> {
             byte[] encryptedBytes = cipher.doFinal(originalPassword.getBytes());
             return Base64.getEncoder().encodeToString(encryptedBytes);
         } catch (Exception e) {
-            throw new RuntimeException("Помилка шифрування пароля", e);
+            throw new RuntimeException("Password encryption error", e);
         }
     }
 
@@ -43,7 +48,7 @@ public class PasswordEncryptor implements AttributeConverter<String, String> {
             byte[] decodedBytes = Base64.getDecoder().decode(encryptedPasswordFromDb);
             return new String(cipher.doFinal(decodedBytes));
         } catch (Exception e) {
-            throw new RuntimeException("Помилка розшифрування пароля", e);
+            throw new RuntimeException("Password decryption error", e);
         }
     }
 }

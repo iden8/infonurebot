@@ -15,17 +15,20 @@ import java.time.LocalDateTime;
 @Table(name = "group_data", schema = "tg_bot")
 public class GroupData {
 
-    @Id // chatid (primary key)
+    @Id
     private Long id;
 
-    @Column(name = "groupname", nullable = false) // назва групи telegram
+    @Column(name = "groupname", nullable = false)
     private String groupName;
 
     @Column(name = "created", nullable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "group_code") // академічна група для розкладу
+    @Column(name = "group_code")
     private String groupCode;
+
+    @Column(name = "reminders_enabled", nullable = false)
+    private boolean remindersEnabled = true;
 
     @Column(name = "ref_info", columnDefinition = "TEXT")
     private String refInfo;

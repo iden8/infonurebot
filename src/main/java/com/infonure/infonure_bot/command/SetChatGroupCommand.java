@@ -40,7 +40,7 @@ public class SetChatGroupCommand implements BotCommand {
         if (message.getChat().isGroupChat() || message.getChat().isSuperGroupChat()) {
             if (infoNureBot.isChatAdmin(chatId, userId)) {
                 responses.add(messageFactory.createMessage(chatId,
-                        "Введіть код академічної групи для цього чату (наприклад, КІУКІ-21-7):",
+                        "Введіть код академічної групи для цього чату (наприклад, СПм-25-2):",
                         keyboardFactory.getCancelKeyboard("SET_CHAT_GROUP")));
                 userStateService.setState(userId, UserState.AWAITING_CHAT_ACADEMIC_GROUP);
             } else {

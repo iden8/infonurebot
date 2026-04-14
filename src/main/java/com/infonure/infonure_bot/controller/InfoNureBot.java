@@ -75,6 +75,8 @@ public class InfoNureBot extends TelegramLongPollingBot {
                 new BotCommand("/adt", "Масова розсилка (тільки для адмінів)"),
                 new BotCommand("/grades", "Подивитись оцінки"),
                 new BotCommand("/deadlines", "Дедлайни по предметам (DL)"),
+                new BotCommand("/rem_on", "Увімк. нагадування про пари"),
+                new BotCommand("/rem_off", "Вимк. нагадування про пари"),
                 new BotCommand("/help", "Довідка")
         );
         SetMyCommands setMyCommands = new SetMyCommands();
@@ -82,9 +84,9 @@ public class InfoNureBot extends TelegramLongPollingBot {
         setMyCommands.setScope(new BotCommandScopeDefault());
         try {
             this.execute(setMyCommands);
-            log.info("Меню команд бота успішно зареєстровано.");
+            log.info("The bot's command menu has been successfully registered.");
         } catch (TelegramApiException e) {
-            log.warn("Не вдалося зареєструвати меню команд бота: {}", e.getMessage());
+            log.warn("Failed to register the bot's command menu: {}", e.getMessage());
         }
     }
 
@@ -97,7 +99,7 @@ public class InfoNureBot extends TelegramLongPollingBot {
             List<ChatMember> administrators = execute(getChatAdministrators);
             return administrators.stream().anyMatch(admin -> admin.getUser().getId().equals(userId));
         } catch (TelegramApiException e) {
-            log.warn("Не вдалося отримати адміністраторів для чату {}. {}", chatId, e.getMessage());
+            log.warn("Unable to obtain chat administrators {}. {}", chatId, e.getMessage());
         }
         return false;
     }

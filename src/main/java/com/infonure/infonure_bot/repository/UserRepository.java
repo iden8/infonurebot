@@ -9,7 +9,11 @@ import java.util.List; // Импорт List
 
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
-    //метод отримання ID всіх користувачів
     @Query("SELECT u.id FROM User u")
     List<Long> findAllUserIds();
+    boolean existsByGroupCodeIgnoreCase(String groupCode);
+
+    List<User> findByGroupCodeAndRemindersEnabledTrue(String groupCode);
+
+    List<User> findByDlTokenIsNotNull();
 }

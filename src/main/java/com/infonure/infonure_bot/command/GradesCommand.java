@@ -51,7 +51,7 @@ public class GradesCommand implements BotCommand {
         }
 
         User user = userOpt.get();
-        responses.add(messageFactory.createMessage(chatId, "⏳ Завантажую список Ваших дисциплін..."));
+        responses.add(messageFactory.createMessage(chatId, "Завантажую список Ваших дисциплін..."));
 
         // Отримуємо курси
         Map<Long, String> courses = moodleService.getUserCourses(user.getDlToken(), user.getMoodleUserId());
@@ -59,7 +59,7 @@ public class GradesCommand implements BotCommand {
         if (courses.isEmpty()) {
             responses.add(messageFactory.createMessage(chatId, "Не знайдено жодного курсу. Можливо, семестр ще не розпочався."));
         } else {
-            responses.add(messageFactory.createMessage(chatId, "📚 Оберіть дисципліну, щоб переглянути оцінки:",
+            responses.add(messageFactory.createMessage(chatId, "Оберіть дисципліну, щоб переглянути оцінки:",
                     keyboardFactory.getGradesCoursesKeyboard(courses)));
         }
     }

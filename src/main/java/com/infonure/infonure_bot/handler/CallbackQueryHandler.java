@@ -96,6 +96,35 @@ public class CallbackQueryHandler {
                 responses.add(messageFactory.createMessage(chatId, "Ця команда доступна тільки в групових чатах."));
             }
         }
+        if (data.equals("AD_AUDIENCE_ALL")) {
+            userStateService.setTargetBroadcastAudience(userId, "ALL");
+            userStateService.setState(userId, UserState.AWAITING_ADVERTISEMENT);
+            responses.add(messageFactory.createMessage(chatId, "Введіть текст оголошення для всіх студентів:"));
+        } else if (data.equals("AD_AUDIENCE_FACULTY_LIST")) {
+            responses.add(messageFactory.createMessage(chatId, "Оберіть факультет:",
+                    keyboardFactory.getFacultiesKeyboard(scheduleService.getFaculties())));
+        } else if (data.startsWith("AD_F_")) {
+            String hashStr = data.replace("AD_F_", "");
+
+            String faculty = scheduleService.getFaculties().stream()
+                    .filter(f -> String.valueOf(Math.abs(f.hashCode())).equals(hashStr))
+                    .findFirst()
+                    .orElse(null);
+
+            if (faculty != null) {
+                userStateService.setTargetBroadcastAudience(userId, "FACULTY:" + faculty);
+                userStateService.setState(userId, UserState.AWAITING_ADVERTISEMENT);
+                responses.add(messageFactory.createMessage(chatId, "Введіть текст для факультету " + faculty + ":"));
+            } else {
+                responses.add(messageFactory.createMessage(chatId, "Помилка вибору. Спробуйте ще раз."));
+            }
+        } else if (data.equals("AD_AUDIENCE_GROUP")) {
+            userStateService.setState(userId, UserState.AWAITING_TARGET_GROUP_NAME);
+            responses.add(messageFactory.createMessage(chatId, "Введіть точну назву групи (наприклад, ПЗПІ-22-1):"));
+        } else if (data.equals("AD_AUDIENCE_BACK")) {
+            responses.add(messageFactory.createMessage(chatId, "Кому:",
+                    keyboardFactory.getBroadcastAudienceKeyboard()));
+        }
     }
 
     private void handleTimetableInput(Long userId, Long chatId, String data, Chat chatContext, List<BotApiMethod<?>> responses) {

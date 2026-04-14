@@ -14,28 +14,32 @@ import java.time.LocalDateTime;
 @Table(name = "user_data", schema = "tg_bot")
 public class User {
 
-    @Id //userid (primary key)
+    @Id
     private Long id;
 
-    @Column(name = "username") //@username
+    @Column(name = "username")
     private String username;
 
-    @Column(name = "created") //дата першого використання
+    @Column(name = "created")
     private LocalDateTime created;
 
-    @Column(name = "group_code") //академічна група
+    @Column(name = "group_code")
     private String groupCode;
+
+    @Column(name = "reminders_enabled", nullable = false)
+    private boolean remindersEnabled = true;
 
     // ПОЛЯ ДЛЯ DL
 
     @Column(name = "dl_token")
+    @Convert(converter = PasswordEncryptor.class)
     private String dlToken;
 
     @Column(name = "dl_login")
     private String dlLogin;
 
     @Column(name = "dl_password")
-    @Convert(converter = PasswordEncryptor.class) //шифрування
+    @Convert(converter = PasswordEncryptor.class)
     private String dlPassword;
 
     @Column(name = "moodle_user_id")

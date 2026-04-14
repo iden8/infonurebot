@@ -210,4 +210,20 @@ public class UserService {
         log.info("ID: {} було розблоковано.", targetId);
         return true;
     }
+
+    @Transactional
+    public void toggleReminders(Long id, boolean enabled, boolean isGroup) {
+        if (isGroup) {
+            groupDataRepository.findById(id).ifPresent(g -> {
+                g.setRemindersEnabled(enabled);
+                groupDataRepository.save(g);
+            });
+        } else {
+            userRepository.findById(id).ifPresent(u -> {
+                u.setRemindersEnabled(enabled);
+                userRepository.save(u);
+            });
+        }
+        log.info("A reminder for ID {} has been set for {}", id, enabled);
+    }
 }

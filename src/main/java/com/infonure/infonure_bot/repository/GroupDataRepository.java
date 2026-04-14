@@ -15,4 +15,6 @@ public interface GroupDataRepository extends JpaRepository<GroupData, Long> {
     List<Long> findAllChatIdsWithAcademicGroup();
 
     Optional<GroupData> findById(Long id);
+
+    List<GroupData> findByGroupCodeAndRemindersEnabledTrue(String groupCode);
 }

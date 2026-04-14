@@ -25,19 +25,23 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.stream.Collectors;
 
 @Service
 public class ScheduleService {
     private static final Logger log = LoggerFactory.getLogger(ScheduleService.class);
 
-    // Константи для роботи з CIST
     private static final String API_KEY = "Timetablekoshovyi";
     private static final ZoneId KYIV_ZONE = ZoneId.of("Europe/Kyiv");
     private final HttpClient client;
 
     private final CachedScheduleRepository repository;
 
-    private final Map<String, Long> groupDictionary = new HashMap<>();
+    private final Map<String, Long> groupDictionary = new ConcurrentHashMap<>();
+    private final Map<String, String> groupToFaculty = new ConcurrentHashMap<>();
+    private final Set<String> faculties = new ConcurrentSkipListSet<>();
 
     public ScheduleService(CachedScheduleRepository repository) {
         this.repository = repository;
@@ -46,7 +50,7 @@ public class ScheduleService {
 
     @PostConstruct
     public void init() {
-        log.info("Запуск ScheduleService. Завантаження довідника груп з CIST...");
+        log.info("Start ScheduleService. Loading the group dictionary from CIST.");
         loadGroupDictionaryFromCist();
     }
 
@@ -61,25 +65,55 @@ public class ScheduleService {
             if (response.statusCode() == 200) {
                 String json = new String(response.body(), Charset.forName("windows-1251"));
                 JsonObject root = JsonParser.parseString(json).getAsJsonObject();
-                extractGroups(root);
-                log.info("Успішно завантажено {} груп до оперативної пам'яті.", groupDictionary.size());
+                extractGroups(root, null);
+                log.info("{} groups have been successfully loaded into RAM.", groupDictionary.size());
             }
         } catch (Exception e) {
-            log.error("Помилка завантаження довідника груп: {}", e.getMessage());
+            log.error("Error loading the group dictionary: {}", e.getMessage());
         }
     }
 
-    private void extractGroups(JsonElement element) {
+    private void extractGroups(JsonElement element, String currentFaculty) {
         if (element.isJsonObject()) {
             JsonObject obj = element.getAsJsonObject();
-            if (obj.has("id") && obj.has("name")) {
-                groupDictionary.put(obj.get("name").getAsString().toUpperCase(), obj.get("id").getAsLong());
+
+            String nextFaculty = currentFaculty;
+
+            if (obj.has("short_name") && obj.has("directions")) {
+                String tempName = obj.get("short_name").getAsString().trim().toUpperCase();
+                // Відсікаємо сміття
+                if (!tempName.equals("ІНШІ") &&
+                        !tempName.startsWith("ЦЕНТР") &&
+                        !tempName.startsWith("ВІДДІЛ")) {
+
+                    nextFaculty = tempName;
+                    faculties.add(nextFaculty);
+                } else {
+                    nextFaculty = null;
+                }
             }
-            for (String key : obj.keySet()) extractGroups(obj.get(key));
+
+            if (obj.has("id") && obj.has("name") && !obj.has("directions")) {
+                String groupName = obj.get("name").getAsString().toUpperCase();
+                groupDictionary.put(groupName, obj.get("id").getAsLong());
+                if (nextFaculty != null) {
+                    groupToFaculty.put(groupName, nextFaculty);
+                }
+            }
+            for (String key : obj.keySet()) extractGroups(obj.get(key), nextFaculty);
         } else if (element.isJsonArray()) {
-            for (JsonElement item : element.getAsJsonArray()) extractGroups(item);
+            for (JsonElement item : element.getAsJsonArray()) extractGroups(item, currentFaculty);
         }
     }
+
+    public Set<String> getGroupsByFaculty(String facultyName) {
+        return groupToFaculty.entrySet().stream()
+                .filter(e -> e.getValue().equalsIgnoreCase(facultyName))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
+    }
+
+    public Set<String> getFaculties() { return faculties; }
 
     public Set<String> getAllAvailableGroups() {
         return groupDictionary.keySet();
@@ -92,7 +126,7 @@ public class ScheduleService {
 
         Long entityId = groupDictionary.get(groupCode.toUpperCase());
         if (entityId == null) {
-            return "❌ Групу '" + groupCode + "' не знайдено в базі університету CIST.";
+            return "Групу '" + groupCode + "' не знайдено в базі університету CIST.";
         }
 
         DateTimeFormatter inputFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy");
@@ -102,13 +136,13 @@ public class ScheduleService {
             viewStart = LocalDate.parse(startDateStr, inputFormatter);
             viewEnd = LocalDate.parse(endDateStr, inputFormatter);
         } catch (Exception e) {
-            return "❌ Помилка обробки дат.";
+            return "Помилка обробки дат.";
         }
 
         String scheduleJson = getOrFetchScheduleFromCache(entityId, 1, viewStart);
 
         if (scheduleJson == null) {
-            return "❌ Не вдалося отримати розклад з серверів ХНУРЕ (Сервер не відповідає).";
+            return "Не вдалося отримати розклад з серверів ХНУРЕ (Сервер не відповідає).";
         }
 
         return formatScheduleToText(scheduleJson, viewStart, viewEnd, groupCode);
@@ -120,12 +154,12 @@ public class ScheduleService {
         if (cachedOpt.isPresent()) {
             CachedSchedule cached = cachedOpt.get();
             if (cached.getUpdatedAt().isAfter(LocalDateTime.now().minusDays(30))) {
-                log.info("Віддаю розклад для ID {} з кешу БД.", entityId);
+                log.info("Schedule for ID {} from the database cache.", entityId);
                 return cached.getJsonData();
             }
         }
 
-        log.info("🔄 Кеш для ID {} застарів або відсутній. Йдемо на CIST...", entityId);
+        log.info("The cache for ID {} is out of date or missing. Go to CIST.", entityId);
 
         int year = viewStart.getYear();
         int month = viewStart.getMonthValue();
@@ -164,7 +198,7 @@ public class ScheduleService {
                 }
             }
         } catch (Exception e) {
-            log.error("❌ Помилка скачування розкладу з CIST: {}", e.getMessage());
+            log.error("Error downloading the schedule from CIST: {}", e.getMessage());
         }
 
         return cachedOpt.map(CachedSchedule::getJsonData).orElse(null);
@@ -174,7 +208,7 @@ public class ScheduleService {
         JsonObject root = JsonParser.parseString(json).getAsJsonObject();
 
         if (!root.has("events") || root.getAsJsonArray("events").isEmpty()) {
-            return "📭 На обраний період занять немає.";
+            return "На обраний період занять немає.";
         }
 
         Map<Long, String> subjectsDict = new HashMap<>();
@@ -199,7 +233,7 @@ public class ScheduleService {
         }
 
         if (scheduleByDate.isEmpty()) {
-            return "📭 На обраний період занять немає.";
+            return "На обраний період занять немає.";
         }
 
         StringBuilder sb = new StringBuilder();
@@ -215,13 +249,11 @@ public class ScheduleService {
             for (JsonObject ev : dailyEvents) {
                 int pairNumber = ev.get("number_pair").getAsInt();
 
-                // --- ДІСТАЄМО І ФОРМАТУЄМО ЧАС ---
                 long startUnix = ev.get("start_time").getAsLong();
                 long endUnix = ev.get("end_time").getAsLong();
                 LocalTime timeStart = Instant.ofEpochSecond(startUnix).atZone(KYIV_ZONE).toLocalTime();
                 LocalTime timeEnd = Instant.ofEpochSecond(endUnix).atZone(KYIV_ZONE).toLocalTime();
                 String timeString = timeStart.format(timeFormatter) + " - " + timeEnd.format(timeFormatter);
-                // ---------------------------------
 
                 String auditory = ev.has("auditory") ? ev.get("auditory").getAsString() : "Онлайн";
                 String subjectName = subjectsDict.getOrDefault(ev.get("subject_id").getAsLong(), "Невідомий предмет");
@@ -233,8 +265,7 @@ public class ScheduleService {
                 }
                 String teacherStr = tNames.isEmpty() ? "-" : String.join(", ", tNames);
 
-                // Додано відображення часу [07:45 - 09:20] до твого формату
-                sb.append(String.format("\n🕒 %d пара | %s\n📖 %s (%s) [[%s]]\n👨‍🏫 %s\n",
+                sb.append(String.format("\n%d пара | %s\n%s (%s) [[%s]]\n%s\n",
                         pairNumber, timeString, subjectName, typeName, auditory, teacherStr));
             }
         }
@@ -243,12 +274,12 @@ public class ScheduleService {
 
     @Scheduled(cron = "0 0 3 * * ?", zone = "Europe/Kyiv")
     public void huntForSchedules() {
-        log.info("Оновлення розкладу");
+        log.info("Schedule update");
 
         List<CachedSchedule> allCached = repository.findAll();
         for (CachedSchedule cache : allCached) {
             try {
-                log.info("Оновлюю розклад для CIST ID: {}", cache.getCistEntityId());
+                log.info("Updating the schedule for CIST ID: {}", cache.getCistEntityId());
 
                 LocalDate now = LocalDate.now(KYIV_ZONE);
                 int year = now.getYear();
@@ -278,14 +309,18 @@ public class ScheduleService {
                 }
                 Thread.sleep(300); // Щоб не DDoS-ити CIST
             } catch (Exception e) {
-                log.error("❌ Помилка фонового оновлення для ID {}: {}", cache.getCistEntityId(), e.getMessage());
+                log.error("Background update error for ID {}: {}", cache.getCistEntityId(), e.getMessage());
             }
         }
-        log.info("Оновлення розкладу завершено. Оновлено {} кешів.", allCached.size());
+        log.info("The schedule update is complete. {} caches have been updated.", allCached.size());
+    }
+
+    public Map<String, Long> getGroupDictionary() {
+        return groupDictionary;
     }
 
     public void refreshSchedule() {
-        log.info("Примусове оновлення довідників.");
+        log.info("Forced update of dictionary files.");
         loadGroupDictionaryFromCist();
     }
 }

@@ -18,12 +18,11 @@ public class BannedUser {
 
     @Id
     @Column(name = "id")
-    private Long id; // ID заблокованого користувача або групи Telegram
+    private Long id;
 
-    @Column(name = "username") // Ім'я може бути відсутнім
-    private String username; // Ім'я користувача/назва чату (для довідки адміністратора)
+    @Column(name = "username")
+    private String username;
 
-    // Конструктор для випадків, коли username не вказано або невідомий
     public BannedUser(Long id, String username) {
         this.id = id;
         this.username = username;
