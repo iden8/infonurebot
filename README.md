@@ -9,8 +9,6 @@
 
 </div>
 
-[🇺🇦 Читати українською](readme.ua.md)
-
 **InfoNureBot** is a multi-functional Telegram bot designed for students of Kharkiv National University of Radio Electronics (NURE). The bot provides convenient access to class schedules (integrated with CIST) and the NURE Distance Learning system (Moodle API), as well as tools for student chat administration.
 
 ## Core Functionality
