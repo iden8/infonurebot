@@ -89,7 +89,7 @@ docker compose up -d
 
 This will automatically build the app, create the PostgreSQL database and start the bot.
 
-### Licensing & Commercial Use
+## Licensing & Commercial Use
 
 Copyright (c) 2025 Vladyslav Sheveliev
 
