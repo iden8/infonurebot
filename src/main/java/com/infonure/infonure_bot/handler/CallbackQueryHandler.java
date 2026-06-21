@@ -1,5 +1,6 @@
 package com.infonure.infonure_bot.handler;
 
+import com.infonure.infonure_bot.model.BotConstants;
 import com.infonure.infonure_bot.model.UserState;
 import com.infonure.infonure_bot.repository.UserRepository;
 import com.infonure.infonure_bot.service.MoodleService;
@@ -60,70 +61,82 @@ public class CallbackQueryHandler {
         Long userId = callbackQuery.getFrom().getId();
         Chat chatContext = message.getChat();
 
-        if (data.endsWith("_CANCEL")) {
-            String actionPrefix = data.substring(0, data.lastIndexOf("_CANCEL"));
-            responses.add(messageFactory.createMessage(chatId, "Дію скасовано."));
-            userStateService.clearState(userId);
-            if ("TIMETABLE_INPUT".equals(actionPrefix)) userStateService.clearState(userId);
-        }
-        else if (data.startsWith("TIMETABLE_")) {
+        if (data.endsWith(BotConstants.CB_CANCEL_SUFFIX)) {
+            handleCancel(userId, chatId, data, responses);
+        } else if (data.startsWith("TIMETABLE_")) {
             handleTimetableInput(userId, chatId, data, chatContext, responses);
-        } else if (data.startsWith("DL_GRADE_")) {
-            Long courseId = Long.parseLong(data.replace("DL_GRADE_", ""));
-
-            Optional<com.infonure.infonure_bot.model.User> userOpt = userRepository.findById(userId);
-
-            if (userOpt.isPresent() && userOpt.get().getDlToken() != null) {
-                com.infonure.infonure_bot.model.User user = userOpt.get();
-
-                String gradesText = moodleService.getCourseGrades(
-                        user.getDlToken(), courseId, user.getMoodleUserId()
-                );
-
-                responses.add(messageFactory.createMessage(chatId, gradesText, "Markdown"));
-            } else {
-                responses.add(messageFactory.createMessage(chatId, "Сесія застаріла. Будь ласка, авторизуйтесь знову: /dl_login"));
-            }
-        } else if (data.equals("REF_INFO_SHOW")) {
-            if (chatContext.isGroupChat() || chatContext.isSuperGroupChat()) {
-                Optional<String> refInfoOpt = userService.getReferenceInfoForChat(chatId);
-                String textToSend = refInfoOpt
-                        .filter(s -> !s.isEmpty())
-                        .map(s -> "*Довідкова інформація групи:*\n" + s)
-                        .orElse("Довідкова інформація для цієї групи ще не встановлена. Адміністратор може додати її за допомогою /ref_info_edit.");
-                responses.add(messageFactory.createMessage(chatId, textToSend, "Markdown"));
-            } else {
-                responses.add(messageFactory.createMessage(chatId, "Ця команда доступна тільки в групових чатах."));
-            }
+        } else if (data.startsWith(BotConstants.CB_DL_GRADE_PREFIX)) {
+            handleDlGrade(userId, chatId, data, responses);
+        } else if (data.equals(BotConstants.CB_REF_INFO_SHOW)) {
+            handleRefInfoShow(chatId, chatContext, responses);
+        } else if (data.startsWith("AD_")) {
+            handleAdAudience(userId, chatId, data, responses);
         }
-        if (data.equals("AD_AUDIENCE_ALL")) {
-            userStateService.setTargetBroadcastAudience(userId, "ALL");
+    }
+
+    private void handleCancel(Long userId, Long chatId, String data, List<BotApiMethod<?>> responses) {
+        String actionPrefix = data.substring(0, data.lastIndexOf(BotConstants.CB_CANCEL_SUFFIX));
+        responses.add(messageFactory.createMessage(chatId, "Дію скасовано."));
+        userStateService.clearState(userId);
+    }
+
+    private void handleDlGrade(Long userId, Long chatId, String data, List<BotApiMethod<?>> responses) {
+        Long courseId = Long.parseLong(data.replace(BotConstants.CB_DL_GRADE_PREFIX, ""));
+        Optional<com.infonure.infonure_bot.model.User> userOpt = userRepository.findById(userId);
+
+        if (userOpt.isPresent() && userOpt.get().getDlToken() != null) {
+            com.infonure.infonure_bot.model.User user = userOpt.get();
+            String gradesText = moodleService.getCourseGrades(user.getDlToken(), courseId, user.getMoodleUserId());
+            responses.add(messageFactory.createMessage(chatId, gradesText, "Markdown"));
+        } else {
+            responses.add(messageFactory.createMessage(chatId, "Сесія застаріла. Будь ласка, авторизуйтесь знову: /dl_login"));
+        }
+    }
+
+    private void handleRefInfoShow(Long chatId, Chat chatContext, List<BotApiMethod<?>> responses) {
+        if (chatContext.isGroupChat() || chatContext.isSuperGroupChat()) {
+            Optional<String> refInfoOpt = userService.getReferenceInfoForChat(chatId);
+            String textToSend = refInfoOpt
+                    .filter(s -> !s.isEmpty())
+                    .map(s -> "*Довідкова інформація групи:*\n" + s)
+                    .orElse("Довідкова інформація для цієї групи ще не встановлена. Адміністратор може додати її за допомогою /ref_info_edit.");
+            responses.add(messageFactory.createMessage(chatId, textToSend, "Markdown"));
+        } else {
+            responses.add(messageFactory.createMessage(chatId, "Ця команда доступна тільки в групових чатах."));
+        }
+    }
+
+    private void handleAdAudience(Long userId, Long chatId, String data, List<BotApiMethod<?>> responses) {
+        if (data.equals(BotConstants.CB_AD_AUDIENCE_ALL)) {
+            userStateService.setTargetBroadcastAudience(userId, BotConstants.AUDIENCE_ALL);
             userStateService.setState(userId, UserState.AWAITING_ADVERTISEMENT);
-            responses.add(messageFactory.createMessage(chatId, "Введіть текст оголошення для всіх студентів:"));
-        } else if (data.equals("AD_AUDIENCE_FACULTY_LIST")) {
+            responses.add(messageFactory.createMessage(chatId, "Введіть оголошення:"));
+
+        } else if (data.equals(BotConstants.CB_AD_AUDIENCE_FACULTY_LIST)) {
             responses.add(messageFactory.createMessage(chatId, "Оберіть факультет:",
                     keyboardFactory.getFacultiesKeyboard(scheduleService.getFaculties())));
-        } else if (data.startsWith("AD_F_")) {
-            String hashStr = data.replace("AD_F_", "");
 
+        } else if (data.startsWith(BotConstants.CB_AD_FACULTY_PREFIX)) {
+            String hashStr = data.replace(BotConstants.CB_AD_FACULTY_PREFIX, "");
             String faculty = scheduleService.getFaculties().stream()
                     .filter(f -> String.valueOf(Math.abs(f.hashCode())).equals(hashStr))
                     .findFirst()
                     .orElse(null);
 
             if (faculty != null) {
-                userStateService.setTargetBroadcastAudience(userId, "FACULTY:" + faculty);
+                userStateService.setTargetBroadcastAudience(userId, BotConstants.AUDIENCE_FACULTY_PREFIX + faculty);
                 userStateService.setState(userId, UserState.AWAITING_ADVERTISEMENT);
-                responses.add(messageFactory.createMessage(chatId, "Введіть текст для факультету " + faculty + ":"));
+                responses.add(messageFactory.createMessage(chatId, "Введіть оголошення для: " + faculty + ":"));
             } else {
                 responses.add(messageFactory.createMessage(chatId, "Помилка вибору. Спробуйте ще раз."));
             }
-        } else if (data.equals("AD_AUDIENCE_GROUP")) {
+
+        } else if (data.equals(BotConstants.CB_AD_AUDIENCE_GROUP)) {
             userStateService.setState(userId, UserState.AWAITING_TARGET_GROUP_NAME);
             responses.add(messageFactory.createMessage(chatId, "Введіть точну назву групи (наприклад, ПЗПІ-22-1):"));
-        } else if (data.equals("AD_AUDIENCE_BACK")) {
-            responses.add(messageFactory.createMessage(chatId, "Кому:",
-                    keyboardFactory.getBroadcastAudienceKeyboard()));
+
+        } else if (data.equals(BotConstants.CB_AD_AUDIENCE_BACK)) {
+            responses.add(messageFactory.createMessage(chatId, "Кому:", keyboardFactory.getBroadcastAudienceKeyboard()));
         }
     }
 
@@ -148,29 +161,29 @@ public class CallbackQueryHandler {
         String startDateStr = null, endDateStr = null;
 
         switch (data) {
-            case "TIMETABLE_OPTIONS":
+            case BotConstants.CB_TIMETABLE_OPTIONS:
                 responses.add(messageFactory.createMessage(chatId, "Оберіть опцію для розкладу:", keyboardFactory.getTimetableOptionsKeyboard()));
                 return;
-            case "TIMETABLE_TODAY":
+            case BotConstants.CB_TIMETABLE_TODAY:
                 startDateStr = today.format(dtf);
                 endDateStr = today.format(dtf);
                 break;
-            case "TIMETABLE_TOMORROW":
+            case BotConstants.CB_TIMETABLE_TOMORROW:
                 startDateStr = today.plusDays(1).format(dtf);
                 endDateStr = today.plusDays(1).format(dtf);
                 break;
-            case "TIMETABLE_THIS_WEEK":
+            case BotConstants.CB_TIMETABLE_THIS_WEEK:
                 startDateStr = today.with(DayOfWeek.MONDAY).format(dtf);
                 endDateStr = today.with(DayOfWeek.SUNDAY).format(dtf);
                 break;
-            case "TIMETABLE_NEXT_WEEK":
+            case BotConstants.CB_TIMETABLE_NEXT_WEEK:
                 startDateStr = today.plusWeeks(1).with(DayOfWeek.MONDAY).format(dtf);
                 endDateStr = today.plusWeeks(1).with(DayOfWeek.SUNDAY).format(dtf);
                 break;
-            case "TIMETABLE_DATE_RANGE":
+            case BotConstants.CB_TIMETABLE_DATE_RANGE:
                 responses.add(messageFactory.createMessage(chatId,
                         "Введіть початкову дату (ДД.ММ.РРРР):",
-                        keyboardFactory.getCancelKeyboard("TIMETABLE_INPUT")));
+                        keyboardFactory.getCancelKeyboard(BotConstants.PREFIX_TIMETABLE_INPUT)));
                 userStateService.setState(userId, UserState.AWAITING_START_DATE);
                 return;
             default:

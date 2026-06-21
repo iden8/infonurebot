@@ -70,31 +70,31 @@
 ## Локальний запуск (Setup & Installation)
 
 1. **Клонуйте репозиторій:**
-   bash
-   git clone [https://github.com/your-username/infonure_bot.git](https://github.com/your-username/infonure_bot.git)
+   ```bash
+   git clone https://github.com/iden8/infonurebot.git
    cd infonure_bot
+   ```
 
-2. **Налаштуйте базу даних:**
-   Створіть базу даних PostgreSQL (наприклад, `postgres`) та схему `tg_bot`.
+2. **Створіть файл конфігурації:**
+   ```bash
+   cp .env.example .env
+   ```
+   Заповніть значення своїми даними.
 
-3. **Створіть файл конфігурації:**
-   У файлі `src/main/resources/application.properties` вкажіть свої дані:
-   properties
-   bot.name=YourBotName
-   bot.token=YOUR_TELEGRAM_BOT_TOKEN
-   bot.admin.ids=123456789 # ID адміністраторів через кому
-   
-   spring.datasource.url=jdbc:postgresql://localhost:5432/postgres
-   spring.datasource.username=ваші_дані
-   spring.datasource.password=ваші_дані
-
-4. **Збірка та запуск (Maven):**
-   bash
-   ./mvnw clean install
-   ./mvnw spring-boot:run
+3. **Запуск через Docker:**
+   ```bash
+   docker compose up -d
+   ```
+   Команда автоматично збере додаток, створить базу даних PostgreSQL та запустить бота.
 
 ## Ліцензування та комерційне використання
 
-**Комерційне використання:** Це програмне забезпечення **НЕ є відкритим**. Усі права захищені. Якщо ви зацікавлені у використанні цього проєкту в комерційних цілях або у придбанні повної версії, будь ласка, зв’яжіться зі мною безпосередньо за адресою isvlalev@gmail.com або t.me/iden89.
-   
-Copyright (c) 2025 Vladyslav Sheveliev, https://github.com/iden8. All rights reserved.
+Авторське право (c) 2025 Владислав Шевелєв (Vladyslav Sheveliev)
+
+Цей проєкт ліцензовано на умовах CC BY-NC 4.0.
+Ви можете вільно використовувати, копіювати, створювати форки та змінювати це програмне забезпечення лише для некомерційних цілей.
+Комерційне використання суворо заборонено.
+Обов'язкове зазначення авторства: https://github.com/iden8
+
+Повна ліцензія: https://creativecommons.org/licenses/by-nc/4.0/
+

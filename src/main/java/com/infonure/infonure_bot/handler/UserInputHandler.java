@@ -1,6 +1,7 @@
 package com.infonure.infonure_bot.handler;
 
 import com.infonure.infonure_bot.controller.InfoNureBot;
+import com.infonure.infonure_bot.model.BotConstants;
 import com.infonure.infonure_bot.model.UserState;
 import com.infonure.infonure_bot.repository.UserRepository;
 import com.infonure.infonure_bot.service.*;
@@ -113,16 +114,22 @@ public class UserInputHandler {
                 handleDlPasswordInput(userId, chatId, text, responses);
                 break;
             case AWAITING_TARGET_GROUP_NAME:
-                String targetGroup = text.toUpperCase().trim();
+                String targetGroup;
+                if (text == null) {
+                    responses.add(messageFactory.createMessage(chatId, "Будь ласка, введіть назву групи текстом."));
+                    return;
+                } else {
+                    targetGroup = text.toUpperCase().trim();
+                }
 
                 if (scheduleService.getAllAvailableGroups().contains(targetGroup)) {
 
                     boolean hasRegistered = userRepository.existsByGroupCodeIgnoreCase(targetGroup);
 
                     if (hasRegistered) {
-                        userStateService.setTargetBroadcastAudience(userId, "GROUP:" + targetGroup);
+                        userStateService.setTargetBroadcastAudience(userId, BotConstants.AUDIENCE_GROUP_PREFIX + targetGroup);
                         userStateService.setState(userId, UserState.AWAITING_ADVERTISEMENT);
-                        responses.add(messageFactory.createMessage(chatId, "Введіть текст оголошення для " + targetGroup + ":"));
+                        responses.add(messageFactory.createMessage(chatId, "Введіть оголошення для: " + targetGroup + ":"));
                     } else {
                         responses.add(messageFactory.createMessage(chatId,
                                 "Ця група є в розкладі, але в даному боті не зареєстровано жодного користувача чи чату з такою групою.\nСпробуйте іншу групу або /cancel:"));
@@ -150,7 +157,7 @@ public class UserInputHandler {
         } else {
             responses.add(messageFactory.createMessage(chatId,
                     "Групу '" + groupCode + "' не знайдено.",
-                    keyboardFactory.getCancelKeyboard("GROUP_INPUT")));
+                    keyboardFactory.getCancelKeyboard(BotConstants.PREFIX_GROUP_INPUT)));
         }
     }
 
@@ -165,7 +172,7 @@ public class UserInputHandler {
         } else {
             responses.add(messageFactory.createMessage(chatId,
                     "Групу " + GroupCode + " не знайдено в розкладі. Перевірте правильність написання. Спробуйте ще раз:",
-                    keyboardFactory.getCancelKeyboard("SET_CHAT_GROUP")));
+                    keyboardFactory.getCancelKeyboard(BotConstants.PREFIX_SET_CHAT_GROUP)));
         }
     }
 
@@ -176,12 +183,12 @@ public class UserInputHandler {
             userStateService.setUserSelectedStartDate(userId, text.trim());
             responses.add(messageFactory.createMessage(chatId,
                     "Тепер введіть кінцеву дату (ДД.ММ.РРРР):",
-                    keyboardFactory.getCancelKeyboard("TIMETABLE_INPUT")));
+                    keyboardFactory.getCancelKeyboard(BotConstants.PREFIX_TIMETABLE_INPUT)));
             userStateService.setState(userId, UserState.AWAITING_END_DATE);
         } catch (DateTimeParseException e) {
             responses.add(messageFactory.createMessage(chatId,
                     "Невірний формат дати. Введіть початкову дату ще раз (ДД.ММ.РРРР):",
-                    keyboardFactory.getCancelKeyboard("TIMETABLE_INPUT")));
+                    keyboardFactory.getCancelKeyboard(BotConstants.PREFIX_TIMETABLE_INPUT)));
         }
     }
 
@@ -199,7 +206,7 @@ public class UserInputHandler {
             if (endDate.isBefore(startDate)) {
                 responses.add(messageFactory.createMessage(chatId,
                         "Кінцева дата не може бути раніше початкової. Введіть кінцеву дату ще раз:",
-                        keyboardFactory.getCancelKeyboard("TIMETABLE_INPUT")));
+                        keyboardFactory.getCancelKeyboard(BotConstants.PREFIX_TIMETABLE_INPUT)));
                 return;
             }
 
@@ -242,33 +249,47 @@ public class UserInputHandler {
         String audience = userStateService.getTargetBroadcastAudience(userId);
         userStateService.clearState(userId);
 
-        List<com.infonure.infonure_bot.model.User> allUsers = userRepository.findAll();
+        if (audience == null) {
+            responses.add(messageFactory.createMessage(originalChatId, "Помилка сесії: не знайдено цільову аудиторію. Спробуйте ще раз."));
+            return;
+        }
+
         Set<Long> targetIds = new HashSet<>();
 
-        Set<String> facultyGroups = null;
-        if (audience.startsWith("FACULTY:")) {
-            facultyGroups = scheduleService.getGroupsByFaculty(audience.split(":")[1]);
+        if (BotConstants.AUDIENCE_ALL.equals(audience)) {
+            List<Long> ids = userRepository.findAllUserIds();
+            if (ids != null) targetIds.addAll(ids);
         }
-        for (com.infonure.infonure_bot.model.User u : allUsers) {
-            if (u.getId().equals(userId)) continue;
-
-            boolean matches = false;
-            String userGroup = u.getGroupCode();
-
-            if ("ALL".equals(audience)) {
-                matches = true;
-            } else if (audience.startsWith("FACULTY:") && userGroup != null && facultyGroups != null) {
-                matches = facultyGroups.contains(userGroup);
-            } else if (audience.startsWith("GROUP:") && userGroup != null) {
-                String group = audience.split(":")[1];
-                matches = group.equalsIgnoreCase(userGroup);
+        else if (audience.startsWith(BotConstants.AUDIENCE_GROUP_PREFIX)) {
+            String group = audience.replace(BotConstants.AUDIENCE_GROUP_PREFIX, "");
+            List<Long> ids = userRepository.findIdsByGroupCode(group);
+            if (ids != null) targetIds.addAll(ids);
+        }
+        else if (audience.startsWith(BotConstants.AUDIENCE_FACULTY_PREFIX)) {
+            String faculty = audience.replace(BotConstants.AUDIENCE_FACULTY_PREFIX, "");
+            Set<String> facultyGroups = scheduleService.getGroupsByFaculty(faculty);
+            if (facultyGroups != null && !facultyGroups.isEmpty()) {
+                List<Long> ids = userRepository.findIdsByGroupCodes(facultyGroups);
+                if (ids != null) targetIds.addAll(ids);
             }
+        }
 
-            if (matches) targetIds.add(u.getId());
+        targetIds.remove(userId);
+
+        if (targetIds.isEmpty()) {
+            responses.add(messageFactory.createMessage(originalChatId, "Не знайдено жодного користувача для цієї аудиторії."));
+            return;
         }
 
         broadcastService.startBroadcast(originalChatId, message.getMessageId(), message.hasPoll(), targetIds);
-        responses.add(messageFactory.createMessage(originalChatId, "Розсилка запущена для: " + audience));
+
+        String displayAudience = audience.replace(BotConstants.AUDIENCE_GROUP_PREFIX, "").replace(BotConstants.AUDIENCE_FACULTY_PREFIX, "");
+        if (BotConstants.AUDIENCE_ALL.equals(displayAudience)) {
+            displayAudience = "всіх студентів";
+
+        }
+
+        responses.add(messageFactory.createMessage(originalChatId, "Розсилка успішно запущена для: " + displayAudience + " (користувачів: " + targetIds.size() + ")"));
     }
 
     private void handleReportInput(Long userId, Message message, List<BotApiMethod<?>> responses) {
@@ -373,10 +394,6 @@ public class UserInputHandler {
             return;
         }
 
-        // Повідомляємо юзеру, що ми думаємо (запит до DL може зайняти пару секунд)
-        responses.add(messageFactory.createMessage(chatId, "Перевіряю дані, зачекайте."));
-
-        // Робимо запит до API ХНУРЕ
         String token = moodleService.authenticate(login, password);
 
         if (token != null) {
@@ -391,9 +408,9 @@ public class UserInputHandler {
                 userRepository.save(user);
             }
 
-            responses.add(messageFactory.createMessage(chatId, "Авторизація успішна! Акаунт ХНУРЕ ДН підключено."));
+            responses.add(messageFactory.createMessage(chatId, "Авторизація успішна."));
         } else {
-            responses.add(messageFactory.createMessage(chatId, "Невірний логін або пароль. Спробуйте ще раз: /dl_login"));
+            responses.add(messageFactory.createMessage(chatId, "Невірний логін або пароль."));
         }
 
         userStateService.clearState(userId);

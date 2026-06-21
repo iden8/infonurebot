@@ -6,6 +6,7 @@ import com.infonure.infonure_bot.model.GroupData;
 import com.infonure.infonure_bot.repository.GroupDataRepository;
 import com.infonure.infonure_bot.model.BannedUser;
 import com.infonure.infonure_bot.repository.BannedUserRepository;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,7 +15,9 @@ import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class UserService {
@@ -24,6 +27,9 @@ public class UserService {
     private final BannedUserRepository bannedUserRepository;
     private static final Logger log = LoggerFactory.getLogger(UserService.class);
 
+    private final Map<Long, String> userCache = new ConcurrentHashMap<>();
+    private final Map<Long, String> chatCache = new ConcurrentHashMap<>();
+
     @Autowired
     public UserService(UserRepository userRepository, GroupDataRepository groupDataRepository, BannedUserRepository bannedUserRepository) {
         this.userRepository = userRepository;
@@ -31,53 +37,65 @@ public class UserService {
         this.bannedUserRepository = bannedUserRepository;
     }
 
+    @PostConstruct
+    public void initCaches() {
+        userRepository.findAll().forEach(u ->
+                userCache.put(u.getId(), u.getUsername() != null ? u.getUsername() : "")
+        );
+
+        groupDataRepository.findAll().forEach(g ->
+                chatCache.put(g.getId(), g.getGroupName() != null ? g.getGroupName() : "")
+        );
+
+        log.info("The cache has been successfully loaded. Users: {}, Chats: {}", userCache.size(), chatCache.size());
+    }
+
     @Transactional
     public void regUser(Long id, String username) {
+        String safeUsername = username != null ? username : "";
+
+        if (userCache.containsKey(id) && userCache.get(id).equals(safeUsername)) {
+            return;
+        }
+
         Optional<User> existingUserOpt = userRepository.findById(id);
 
         if (existingUserOpt.isPresent()) {
             User userToUpdate = existingUserOpt.get();
-            String currentUsername = userToUpdate.getUsername();
-
-            // Оновлюємо, якщо username змінився або якщо був видалений (null)
-            if ((username == null && currentUsername != null) || (username != null && !username.equals(currentUsername))) {
-                userToUpdate.setUsername(username);
-                userRepository.save(userToUpdate);
-                log.info("Оновлено username для користувача: ID {}, Username @{}", id, username == null ? "null" : username);
-            }
+            userToUpdate.setUsername(username);
+            userRepository.save(userToUpdate);
+            log.info("Username updated for user: ID {}, Username @{}", id, safeUsername);
         } else {
-            // Якщо користувача немає в базі, створюємо нового
             User user = new User(id, username, LocalDateTime.now(), "null");
             userRepository.save(user);
-            log.info("Зареєстровано нового користувача: ID {}, Username @{}", id, username == null ? "null" : username);
+            log.info("New user registered: ID {}, Username @{}", id, safeUsername);
         }
+
+        userCache.put(id, safeUsername);
     }
 
     @Transactional
     public void regChat(Long chatId, String chatTitle) {
-        Optional<GroupData> groupOpt = groupDataRepository.findById(chatId);
-        // Використовуємо назву за замовчуванням, якщо актуальна назва null або порожня
         String effectiveChatTitle = (chatTitle == null || chatTitle.trim().isEmpty()) ? "-" : chatTitle.trim();
+
+        if (chatCache.containsKey(chatId) && chatCache.get(chatId).equals(effectiveChatTitle)) {
+            return;
+        }
+
+        Optional<GroupData> groupOpt = groupDataRepository.findById(chatId);
 
         if (groupOpt.isPresent()) {
             GroupData group = groupOpt.get();
-            String currentDbTitle = group.getGroupName();
-
-            // Нормалізуємо поточну назву з БД для порівняння, якщо вона може бути null/порожньою
-            String normalizedDbTitle = (currentDbTitle == null || currentDbTitle.trim().isEmpty()) ? "-" : currentDbTitle.trim();
-
-            if (!effectiveChatTitle.equals(normalizedDbTitle)) {
-                log.info("Оновлюємо назву для групового чату ID {}: стара назва {}, нова назва {}",
-                        chatId, normalizedDbTitle, effectiveChatTitle);
-                group.setGroupName(effectiveChatTitle); // Припускаємо, що setGroupName(String title) оновлює назву
-                groupDataRepository.save(group);
-            }
-            // Якщо назва не змінилася, нічого не робимо
+            log.info("Updating the name for group chat: ID {}, new name {}", chatId, effectiveChatTitle);
+            group.setGroupName(effectiveChatTitle);
+            groupDataRepository.save(group);
         } else {
-            log.info("Реєструємо новий груповий чат: ID {}, назва {}", chatId, effectiveChatTitle);
+            log.info("Register a new group chat: ID {}, name {}", chatId, effectiveChatTitle);
             GroupData newGroup = new GroupData(chatId, effectiveChatTitle, LocalDateTime.now());
             groupDataRepository.save(newGroup);
         }
+
+        chatCache.put(chatId, effectiveChatTitle);
     }
 
 
@@ -88,9 +106,9 @@ public class UserService {
             User user = userOpt.get();
             user.setGroupCode(groupCode);
             userRepository.save(user);
-            log.info("Встановлено групу {} для користувача {}", groupCode, userId);
+            log.info("Academic group {} set for user {}", groupCode, userId);
         } else {
-            log.warn("Спроба встановити групу для незареєстрованого користувача: {}", userId);
+            log.warn("Attempting to set a group for an unregistered user: {}", userId);
         }
     }
 
@@ -111,12 +129,12 @@ public class UserService {
         if (groupOpt.isPresent()) {
             group = groupOpt.get();
         } else {
-            log.info("Реєструємо новий чат {} з назвою {} при встановленні академ. групи.", chatId, chatTitle);
+            log.info("Register a new chat {} with the name {} when setting up an academic group.", chatId, chatTitle);
             group = new GroupData(chatId, chatTitle, LocalDateTime.now());
         }
         group.setGroupCode(academicGroupCode);
         groupDataRepository.save(group);
-        log.info("Встановлено академічну групу {} для чату {}", academicGroupCode, chatId);
+        log.info("Academic group {} set for chat {}", academicGroupCode, chatId);
         return true;
     }
 
@@ -141,7 +159,7 @@ public class UserService {
             groupDataRepository.save(group);
             return true;
         }
-        log.warn("Спроба встановити ref_info для незареєстрованого чату: {}", chatId);
+        log.warn("Attempting to set ref_info for unregistered chat: {}", chatId);
         return false;
     }
 
@@ -157,7 +175,7 @@ public class UserService {
     public boolean isEntityBanned(Long entityId) {
         boolean banned = bannedUserRepository.existsById(entityId);
         if (banned) {
-            log.debug("ID {} заблокований.", entityId);
+            log.debug("ID {} is banned.", entityId);
         }
         return banned;
     }
@@ -166,23 +184,21 @@ public class UserService {
     @Transactional
     public boolean banEntity(Long targetId) {
         if (bannedUserRepository.existsById(targetId)) {
-            log.info("Спроба повторно заблокувати ID: {}. Вже заблокований.", targetId);
+            log.info("Attempting to ban ID: {}. Already banned.", targetId);
             return false; // Сутність вже заблокована
         }
 
         String nameToStore = null;
 
-        // Спроба отримати username з таблиці user_data
         Optional<User> userOptional = userRepository.findById(targetId);
         if (userOptional.isPresent() && userOptional.get().getUsername() != null && !userOptional.get().getUsername().trim().isEmpty()) {
             nameToStore = userOptional.get().getUsername().trim();
-            log.info("Знайдено username '{}' для ID {} в таблиці user_data для бану.", nameToStore, targetId);
+            log.info("Found username '{}' for ID {} in the user_data table for the ban.", nameToStore, targetId);
         } else {
-            //Якщо не знайдено в user_data або username порожній, спробувати отримати groupname з group_data
             Optional<GroupData> groupOptional = groupDataRepository.findById(targetId);
             if (groupOptional.isPresent() && groupOptional.get().getGroupName() != null && !groupOptional.get().getGroupName().trim().isEmpty()) {
                 nameToStore = groupOptional.get().getGroupName().trim(); // Зберігаємо назву чату
-                log.info("Знайдено назву групи '{}' для ID {} в таблиці group_data для бану.", nameToStore, targetId);
+                log.info("Found group name '{}' for ID {} in group_data table for ban.", nameToStore, targetId);
             }
         }
 
@@ -190,12 +206,12 @@ public class UserService {
         //встановити "-" як значення за замовчуванням.
         if (nameToStore == null || nameToStore.trim().isEmpty()) {
             nameToStore = "-"; // Встановлюємо дефіс, якщо нічого не знайдено
-            log.warn("Ім'я/назва для ID {} не знайдено в БД. Встановлено за замовчуванням: '{}'", targetId, nameToStore);
+            log.warn("The name for ID {} was not found in the database. Default is: '{}'", targetId, nameToStore);
         }
 
         BannedUser bannedEntity = new BannedUser(targetId, nameToStore);
         bannedUserRepository.save(bannedEntity);
-        log.info("ID: {} було заблоковано. Збережене ім'я/назва: '{}'", targetId, nameToStore);
+        log.info("ID: {} has been banned. Saved name/title: '{}'", targetId, nameToStore);
         return true;
     }
 
@@ -203,11 +219,11 @@ public class UserService {
     @Transactional
     public boolean unbanEntity(Long targetId) {
         if (!bannedUserRepository.existsById(targetId)) {
-            log.info("Спроба розблокувати ID: {}. Не знайдено в списку заблокованих.", targetId);
-            return false; // Не був заблокований
+            log.info("Attempting to unban ID: {}. Not found in banned list.", targetId);
+            return false;
         }
         bannedUserRepository.deleteById(targetId);
-        log.info("ID: {} було розблоковано.", targetId);
+        log.info("ID: {} has been unbanned.", targetId);
         return true;
     }
 

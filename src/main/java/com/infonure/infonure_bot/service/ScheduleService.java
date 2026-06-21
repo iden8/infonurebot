@@ -12,6 +12,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import java.time.Duration;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -33,7 +37,7 @@ import java.util.stream.Collectors;
 public class ScheduleService {
     private static final Logger log = LoggerFactory.getLogger(ScheduleService.class);
 
-    private static final String API_KEY = "Timetablekoshovyi";
+    private static final String API_KEY = System.getenv("API_KEY");
     private static final ZoneId KYIV_ZONE = ZoneId.of("Europe/Kyiv");
     private final HttpClient client;
 
@@ -45,7 +49,10 @@ public class ScheduleService {
 
     public ScheduleService(CachedScheduleRepository repository) {
         this.repository = repository;
-        this.client = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
+        this.client = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
     }
 
     @PostConstruct
@@ -94,7 +101,7 @@ public class ScheduleService {
             }
 
             if (obj.has("id") && obj.has("name") && !obj.has("directions")) {
-                String groupName = obj.get("name").getAsString().toUpperCase();
+                String groupName = obj.get("name").getAsString().toUpperCase().trim();
                 groupDictionary.put(groupName, obj.get("id").getAsLong());
                 if (nextFaculty != null) {
                     groupToFaculty.put(groupName, nextFaculty);
@@ -276,43 +283,58 @@ public class ScheduleService {
     public void huntForSchedules() {
         log.info("Schedule update");
 
-        List<CachedSchedule> allCached = repository.findAll();
-        for (CachedSchedule cache : allCached) {
-            try {
-                log.info("Updating the schedule for CIST ID: {}", cache.getCistEntityId());
+        int pageSize = 50;
+        int pageNumber = 0;
+        Pageable pageable = PageRequest.of(pageNumber, pageSize);
+        Page<CachedSchedule> page;
 
-                LocalDate now = LocalDate.now(KYIV_ZONE);
-                int year = now.getYear();
-                int month = now.getMonthValue();
-                LocalDate semStart = (month >= 8 || month == 1) ? LocalDate.of(month == 1 ? year - 1 : year, 8, 1) : LocalDate.of(year, 2, 1);
-                LocalDate semEnd = (month >= 8 || month == 1) ? LocalDate.of(month == 1 ? year : year + 1, 1, 31) : LocalDate.of(year, 7, 31);
+        do {
+            page = repository.findAll(pageable);
 
-                long timeFrom = semStart.atStartOfDay(KYIV_ZONE).toEpochSecond();
-                long timeTo = semEnd.plusDays(1).atStartOfDay(KYIV_ZONE).toEpochSecond();
+            for (CachedSchedule cache : page.getContent()) {
+                try {
+                    log.info("Updating the schedule for CIST ID: {}", cache.getCistEntityId());
 
-                String url = String.format("https://cist.nure.ua/ias/app/tt/P_API_EVEN_JSON?type_id=%d&timetable_id=%d&time_from=%d&time_to=%d&idClient=%s",
-                        cache.getTypeId(), cache.getCistEntityId(), timeFrom, timeTo, API_KEY);
+                    LocalDate now = LocalDate.now(KYIV_ZONE);
+                    int year = now.getYear();
+                    int month = now.getMonthValue();
+                    LocalDate semStart = (month >= 8 || month == 1) ? LocalDate.of(month == 1 ? year - 1 : year, 8, 1) : LocalDate.of(year, 2, 1);
+                    LocalDate semEnd = (month >= 8 || month == 1) ? LocalDate.of(month == 1 ? year : year + 1, 1, 31) : LocalDate.of(year, 7, 31);
 
-                HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
-                HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
+                    long timeFrom = semStart.atStartOfDay(KYIV_ZONE).toEpochSecond();
+                    long timeTo = semEnd.plusDays(1).atStartOfDay(KYIV_ZONE).toEpochSecond();
 
-                if (response.statusCode() == 200) {
-                    String json = new String(response.body(), Charset.forName("windows-1251"));
-                    if (!json.contains("ORA-20001")) {
-                        json = json.replace("\"events\":[\n]}]", "\"events\":[]}");
-                        json = json.replaceAll("\"events\"\\s*:\\s*\\[\\s*\\]\\s*\\}\\s*\\]", "\"events\":[]}");
+                    String url = String.format("https://cist.nure.ua/ias/app/tt/P_API_EVEN_JSON?type_id=%d&timetable_id=%d&time_from=%d&time_to=%d&idClient=%s",
+                            cache.getTypeId(), cache.getCistEntityId(), timeFrom, timeTo, API_KEY);
 
-                        cache.setJsonData(json);
-                        cache.setUpdatedAt(LocalDateTime.now());
-                        repository.save(cache);
+                    HttpRequest request = HttpRequest.newBuilder()
+                            .uri(URI.create(url))
+                            .timeout(Duration.ofSeconds(15)) // ДОДАНО ТАЙМАУТ НА ВІДПОВІДЬ
+                            .GET()
+                            .build();
+
+                    HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
+
+                    if (response.statusCode() == 200) {
+                        String json = new String(response.body(), Charset.forName("windows-1251"));
+                        if (!json.contains("ORA-20001")) {
+                            json = json.replace("\"events\":[\n]}]", "\"events\":[]}");
+                            json = json.replaceAll("\"events\"\\s*:\\s*\\[\\s*\\]\\s*\\}\\s*\\]", "\"events\":[]}");
+
+                            cache.setJsonData(json);
+                            cache.setUpdatedAt(LocalDateTime.now());
+                            repository.save(cache);
+                        }
                     }
+                    Thread.sleep(300); // Щоб не DDoS-ити CIST
+                } catch (Exception e) {
+                    log.error("Background update error for ID {}: {}", cache.getCistEntityId(), e.getMessage());
                 }
-                Thread.sleep(300); // Щоб не DDoS-ити CIST
-            } catch (Exception e) {
-                log.error("Background update error for ID {}: {}", cache.getCistEntityId(), e.getMessage());
             }
-        }
-        log.info("The schedule update is complete. {} caches have been updated.", allCached.size());
+            pageable = page.nextPageable();
+        } while (page.hasNext());
+
+        log.info("The schedule update is complete.");
     }
 
     public Map<String, Long> getGroupDictionary() {

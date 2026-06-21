@@ -60,7 +60,8 @@ dependency-reduced-pom.xml
 .vscode/ 
 
 ### Secrets & Windows
-.env 
+.env
+!.env.example
 *.properties 
 !application.properties 
 secrets.xml 

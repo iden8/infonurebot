@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.objects.MaybeInaccessibleMessage;
 import org.telegram.telegrambots.meta.api.objects.Message;
@@ -91,43 +92,47 @@ public class UpdateDispatcher {
 
     private void handleIncomingMessage(Message message, List<BotApiMethod<?>> responses) {
         Long userId = message.getFrom().getId();
-        String text = message.getText();
-        UserState currentState = userStateService.getState(userId);
+        try {
+            String text = message.getText();
+            UserState currentState = userStateService.getState(userId);
 
-        if (text != null && text.startsWith("/")) {
-            String commandText = text;
-            String botUsername = infoNureBot.getBotUsername();
+            if (text != null && text.startsWith("/")) {
+                String commandText = text;
+                String botUsername = infoNureBot.getBotUsername();
 
-            if (commandText.contains("@")) {
-                String[] commandParts = commandText.split("@");
-                String commandName = commandParts[0];
-                String targetBotWithArgs = commandParts[1];
-                String targetBot = targetBotWithArgs.split(" ")[0];
+                if (commandText.contains("@")) {
+                    String[] commandParts = commandText.split("@");
+                    String commandName = commandParts[0];
+                    String targetBotWithArgs = commandParts[1];
+                    String targetBot = targetBotWithArgs.split(" ")[0];
 
-                if (!targetBot.equals(botUsername)) {
-                    log.info("Команда {} для іншого бота ({}).", commandText, targetBot);
-                    return;
-                }
-                commandText = commandName;
-                if (targetBotWithArgs.length() > targetBot.length()) {
-                    String args = targetBotWithArgs.substring(targetBot.length()).trim();
-                    if (!args.isEmpty()) {
-                        commandText += " " + args;
+                    if (!targetBot.equals(botUsername)) {
+                        log.info("Command {} for another bot ({}).", commandText, targetBot);
+                        return;
+                    }
+                    commandText = commandName;
+                    if (targetBotWithArgs.length() > targetBot.length()) {
+                        String args = targetBotWithArgs.substring(targetBot.length()).trim();
+                        if (!args.isEmpty()) {
+                            commandText += " " + args;
+                        }
                     }
                 }
-            }
 
-            if (!commandText.startsWith("/cancel")) {
-                userStateService.clearState(userId);
+                if (!commandText.startsWith("/cancel")) {
+                    userStateService.clearState(userId);
+                }
+                handleCommand(message, commandText, responses);
+            } else {
+                // Маршрутизація для введення станів
+                if (currentState != UserState.IDLE) {
+                    userInputHandler.handleInput(currentState, message, responses);
+                } else if (text != null) {
+                    responses.add(messageFactory.createMessage(message.getChatId(), "Не очікується введення тексту для поточного стану. Використайте /cancel, щоб скасувати."));
+                }
             }
-            handleCommand(message, commandText, responses);
-        } else {
-            // Маршрутизація для введення станів
-            if (currentState != UserState.IDLE) {
-                userInputHandler.handleInput(currentState, message, responses);
-            } else if (text != null) {
-                responses.add(messageFactory.createMessage(message.getChatId(), "Не очікується введення тексту для поточного стану. Використайте /cancel, щоб скасувати."));
-            }
+        } catch (ObjectOptimisticLockingFailureException e) {
+            log.warn("Ignored concurrent request from user {}: Optimistic Lock Exception", userId);
         }
     }
 

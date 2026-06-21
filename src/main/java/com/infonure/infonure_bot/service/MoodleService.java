@@ -12,6 +12,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -30,7 +31,10 @@ public class MoodleService {
     private final HttpClient client;
 
     public MoodleService() {
-        this.client = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
+        this.client = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
     }
 
     public String authenticate(String username, String password) {
@@ -38,12 +42,15 @@ public class MoodleService {
             String encodedUsername = URLEncoder.encode(username.trim(), StandardCharsets.UTF_8);
             String encodedPassword = URLEncoder.encode(password, StandardCharsets.UTF_8);
 
-            String url = String.format("https://dl.nure.ua/login/token.php?username=%s&password=%s&service=moodle_mobile_app",
-                    encodedUsername, encodedPassword);
+            String url = "https://dl.nure.ua/login/token.php";
+            String formData = "username=" + URLEncoder.encode(username.trim(), StandardCharsets.UTF_8) +
+                    "&password=" + URLEncoder.encode(password, StandardCharsets.UTF_8) +
+                    "&service=moodle_mobile_app";
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))
-                    .GET()
+                    .header("Content-Type", "application/x-www-form-urlencoded")
+                    .POST(HttpRequest.BodyPublishers.ofString(formData))
                     .build();
 
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
@@ -54,7 +61,7 @@ public class MoodleService {
                 if (root.has("token")) {
                     return root.get("token").getAsString();
                 } else if (root.has("error")) {
-                    log.warn("Помилка авторизації DL для {}: {}", username, root.get("error").getAsString());
+                    log.warn("DL authorization error for {}: {}", username, root.get("error").getAsString());
                 }
             }
         } catch (Exception e) {
@@ -236,89 +243,5 @@ public class MoodleService {
             log.error("Error retrieving deadlines: {}", e.getMessage());
         }
         return "Не вдалося отримати дедлайни. Можливо, сесія застаріла. Спробуйте /dl_login";
-    }
-
-    public void processAutoAttendanceForUser(String token, Long moodleUserId) {
-        Map<Long, String> courses = getUserCourses(token, moodleUserId);
-
-        for (Map.Entry<Long, String> entry : courses.entrySet()) {
-            Long courseId = entry.getKey();
-            String courseName = entry.getValue();
-
-            try {
-                String url = String.format(
-                        "https://dl.nure.ua/webservice/rest/server.php?wstoken=%s&wsfunction=mod_attendance_get_sessions&moodlewsrestformat=json&courseid=%d",
-                        token, courseId
-                );
-
-                HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
-                HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-                if (response.statusCode() == 200) {
-                    JsonElement rootElem = JsonParser.parseString(response.body());
-
-                    if (rootElem.isJsonObject() && rootElem.getAsJsonObject().has("exception")) {
-                        continue;
-                    }
-
-                    JsonArray sessions = new JsonArray();
-                    if (rootElem.isJsonArray()) {
-                        sessions = rootElem.getAsJsonArray();
-                    } else if (rootElem.isJsonObject() && rootElem.getAsJsonObject().has("sessions")) {
-                        sessions = rootElem.getAsJsonObject().getAsJsonArray("sessions");
-                    }
-
-                    for (JsonElement sessionElem : sessions) {
-                        JsonObject session = sessionElem.getAsJsonObject();
-
-                        if (session.has("studentscanmark") && session.get("studentscanmark").getAsBoolean()) {
-                            long sessionId = session.get("id").getAsLong();
-                            long presentStatusId = -1;
-
-                            if (session.has("statuses")) {
-                                JsonArray statuses = session.getAsJsonArray("statuses");
-                                for (JsonElement statusElem : statuses) {
-                                    JsonObject status = statusElem.getAsJsonObject();
-                                    if (status.has("acronym")) {
-                                        String acronym = status.get("acronym").getAsString().toUpperCase();
-                                        if (acronym.equals("П") || acronym.equals("P")) {
-                                            presentStatusId = status.get("id").getAsLong();
-                                            break;
-                                        }
-                                    }
-                                }
-                                if (presentStatusId == -1 && !statuses.isEmpty()) {
-                                    presentStatusId = statuses.get(0).getAsJsonObject().get("id").getAsLong();
-                                }
-                            }
-
-                            if (presentStatusId != -1) {
-                                sendAttendanceRequest(token, sessionId, moodleUserId, presentStatusId, courseName);
-                            }
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                log.error("Attendance check error for course {} (User {}): {}", courseId, moodleUserId, e.getMessage());
-            }
-        }
-    }
-
-    private void sendAttendanceRequest(String token, Long sessionId, Long studentId, Long statusId, String courseName) {
-        try {
-            String url = String.format(
-                    "https://dl.nure.ua/webservice/rest/server.php?wstoken=%s&wsfunction=mod_attendance_update_user_status&moodlewsrestformat=json&sessionid=%d&studentid=%d&statusid=%d",
-                    token, sessionId, studentId, statusId
-            );
-
-            HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-            if (response.statusCode() == 200) {
-                log.info("Student ID {} was automatically marked as present at '{}' (Session: {})", studentId, courseName, sessionId);
-            }
-        } catch (Exception e) {
-            log.error("Failed to send student attendance mark: {}", e.getMessage());
-        }
     }
 }

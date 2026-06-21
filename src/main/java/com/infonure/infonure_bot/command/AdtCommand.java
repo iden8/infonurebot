@@ -35,6 +35,7 @@ public class AdtCommand implements BotCommand {
             responses.add(messageFactory.createMessage(message.getChatId(),
                     "Кому:",
                     keyboardFactory.getBroadcastAudienceKeyboard()));
-        }
+        } else { responses.add(messageFactory.createMessage(message.getChatId(),
+                "Ця функція доступна тільки адмінам."));}
     }
 }

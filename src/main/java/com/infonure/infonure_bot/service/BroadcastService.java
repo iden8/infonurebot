@@ -27,7 +27,7 @@ public class BroadcastService {
 
     @Async
     public void startBroadcast(Long originalChatId, Integer messageId, boolean hasPoll, Set<Long> targetIds) {
-        log.info("Починаю розсилку на {} чатів...", targetIds.size());
+        log.info("Starting broadcast for {} chats.", targetIds.size());
         int successCount = 0;
 
         for (Long targetId : targetIds) {
@@ -40,8 +40,6 @@ public class BroadcastService {
                     bot.execute(copy);
                 }
                 successCount++;
-
-                // Пауза 50 мс, щоб не перевищити ліміт Telegram (30 повідомлень на секунду)
                 Thread.sleep(50);
             } catch (TelegramApiException e) {
                 log.warn("The message could not be sent {}: {}", targetId, e.getMessage());
@@ -59,13 +57,13 @@ public class BroadcastService {
 
     @Async
     public void sendSystemTextBroadcast(Set<Long> targetIds, String text) {
-        log.info("Починаю системну розсилку на {} чатів...", targetIds.size());
+        log.info("Starting a system broadcast to {} chats.", targetIds.size());
         for (Long targetId : targetIds) {
             try {
                 bot.execute(messageFactory.createMessage(targetId, text, "Markdown"));
-                Thread.sleep(50); // Зберігаємо захист від лімітів Telegram
+                Thread.sleep(50);
             } catch (TelegramApiException e) {
-                log.warn("Не вдалося надіслати системне повідомлення {}: {}", targetId, e.getMessage());
+                log.warn("Failed to send system message {}: {}", targetId, e.getMessage());
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 break;

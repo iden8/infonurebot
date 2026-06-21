@@ -59,7 +59,7 @@ public class BanCommand implements BotCommand {
 
                     if (userService.banEntity(targetIdToBan)) {
                         responses.add(messageFactory.createMessage(chatId, "ID: " + targetIdToBan + " успішно заблоковано."));
-                        log.info("Адміністратор ID {} заблокував ID {}", adminUserId, targetIdToBan);
+                        log.info("Admin ID {} has banned ID {}", adminUserId, targetIdToBan);
                     } else {
                         responses.add(messageFactory.createMessage(chatId, "ID: " + targetIdToBan + " вже заблоковано."));
                     }

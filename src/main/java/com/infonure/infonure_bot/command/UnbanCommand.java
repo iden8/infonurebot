@@ -49,7 +49,7 @@ public class UnbanCommand implements BotCommand {
                     Long targetIdToUnban = Long.parseLong(idPart);
                     if (userService.unbanEntity(targetIdToUnban)) {
                         responses.add(messageFactory.createMessage(chatId, "ID: " + targetIdToUnban + " успішно розблоковано."));
-                        log.info("Адміністратор розблокував ID {}", targetIdToUnban);
+                        log.info("Admin has unban ID {}", targetIdToUnban);
                     } else {
                         responses.add(messageFactory.createMessage(chatId, "ID: " + targetIdToUnban + " не знайдено в списку заблокованих."));
                     }
