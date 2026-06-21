@@ -28,6 +28,7 @@ public class BroadcastService {
     @Async
     public void startBroadcast(Long originalChatId, Integer messageId, boolean hasPoll, Set<Long> targetIds) {
         log.info("Starting broadcast for {} chats.", targetIds.size());
+        log.info("Target IDs to broadcast: {}", targetIds);
         int successCount = 0;
 
         for (Long targetId : targetIds) {

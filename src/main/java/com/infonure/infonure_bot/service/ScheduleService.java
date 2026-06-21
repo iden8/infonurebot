@@ -1,6 +1,5 @@
 package com.infonure.infonure_bot.service;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -309,7 +308,7 @@ public class ScheduleService {
 
                     HttpRequest request = HttpRequest.newBuilder()
                             .uri(URI.create(url))
-                            .timeout(Duration.ofSeconds(15)) // ДОДАНО ТАЙМАУТ НА ВІДПОВІДЬ
+                            .timeout(Duration.ofSeconds(15))
                             .GET()
                             .build();
 
@@ -326,7 +325,7 @@ public class ScheduleService {
                             repository.save(cache);
                         }
                     }
-                    Thread.sleep(300); // Щоб не DDoS-ити CIST
+                    Thread.sleep(300);
                 } catch (Exception e) {
                     log.error("Background update error for ID {}: {}", cache.getCistEntityId(), e.getMessage());
                 }

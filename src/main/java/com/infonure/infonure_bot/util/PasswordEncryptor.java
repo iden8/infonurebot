@@ -23,7 +23,6 @@ public class PasswordEncryptor implements AttributeConverter<String, String> {
             throw new IllegalStateException("The ENCRYPTION_KEY key was not found");
         }
         try {
-            // Використовуємо SHA-256 для отримання стабільного 32-байтного ключа (AES-256) з будь-якого рядка
             MessageDigest sha = MessageDigest.getInstance("SHA-256");
             KEY = sha.digest(secretKey.getBytes("UTF-8"));
         } catch (Exception e) {
@@ -37,7 +36,6 @@ public class PasswordEncryptor implements AttributeConverter<String, String> {
             return originalPassword;
         }
         try {
-            // Генерація випадкового вектора ініціалізації (IV)
             byte[] iv = new byte[IV_LENGTH];
             new SecureRandom().nextBytes(iv);
             IvParameterSpec ivSpec = new IvParameterSpec(iv);

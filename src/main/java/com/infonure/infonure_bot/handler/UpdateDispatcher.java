@@ -11,9 +11,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
-import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
-import org.telegram.telegrambots.meta.api.objects.MaybeInaccessibleMessage;
-import org.telegram.telegrambots.meta.api.objects.Message;
+import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
+import org.telegram.telegrambots.meta.api.objects.message.MaybeInaccessibleMessage;
+import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 
 import java.util.ArrayList;
@@ -59,6 +59,7 @@ public class UpdateDispatcher {
 
                 if (update.getMessage().getChat() != null && (update.getMessage().getChat().isGroupChat() || update.getMessage().getChat().isSuperGroupChat()))
                     userService.regChat(update.getMessage().getChat().getId(), update.getMessage().getChat().getTitle());
+
 
                 if (userService.isEntityBanned(update.getMessage().getFrom().getId())) return responses;
                 if (userService.isEntityBanned(update.getMessage().getChat().getId())) return responses;

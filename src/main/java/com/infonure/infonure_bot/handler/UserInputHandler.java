@@ -3,6 +3,7 @@ package com.infonure.infonure_bot.handler;
 import com.infonure.infonure_bot.controller.InfoNureBot;
 import com.infonure.infonure_bot.model.BotConstants;
 import com.infonure.infonure_bot.model.UserState;
+import com.infonure.infonure_bot.repository.GroupDataRepository;
 import com.infonure.infonure_bot.repository.UserRepository;
 import com.infonure.infonure_bot.service.*;
 import com.infonure.infonure_bot.view.KeyboardFactory;
@@ -12,10 +13,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
-import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
+import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.CopyMessage;
-import org.telegram.telegrambots.meta.api.objects.Chat;
-import org.telegram.telegrambots.meta.api.objects.Message;
+import org.telegram.telegrambots.meta.api.objects.chat.Chat;
+import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.api.objects.User;
 
 import java.time.LocalDate;
@@ -40,6 +41,7 @@ public class UserInputHandler {
     private final InfoNureBot infoNureBot;
     private final MoodleService moodleService;
     private final UserRepository userRepository;
+    private final GroupDataRepository groupDataRepository;
 
     @Value("${bot.admin.ids}")
     private Set<Long> adminIds;
@@ -47,6 +49,7 @@ public class UserInputHandler {
     public UserInputHandler(UserService userService, ScheduleService scheduleService,
                             BroadcastService broadcastService, UserStateService userStateService,
                             MoodleService moodleService, UserRepository userRepository,
+                            GroupDataRepository groupDataRepository,
                             KeyboardFactory keyboardFactory, MessageFactory messageFactory,
                             @Lazy InfoNureBot infoNureBot) {
         this.userService = userService;
@@ -55,6 +58,7 @@ public class UserInputHandler {
         this.userStateService = userStateService;
         this.moodleService = moodleService;
         this.userRepository = userRepository;
+        this.groupDataRepository = groupDataRepository;
         this.keyboardFactory = keyboardFactory;
         this.messageFactory = messageFactory;
         this.infoNureBot = infoNureBot;
@@ -257,20 +261,46 @@ public class UserInputHandler {
         Set<Long> targetIds = new HashSet<>();
 
         if (BotConstants.AUDIENCE_ALL.equals(audience)) {
+            // Збираємо користувачів
             List<Long> ids = userRepository.findAllUserIds();
             if (ids != null) targetIds.addAll(ids);
+
+            // Збираємо всі зареєстровані групові чати
+            List<Long> groupIds = groupDataRepository.findAllChatIdsWithAcademicGroup();
+            if (groupIds != null) targetIds.addAll(groupIds);
         }
         else if (audience.startsWith(BotConstants.AUDIENCE_GROUP_PREFIX)) {
             String group = audience.replace(BotConstants.AUDIENCE_GROUP_PREFIX, "");
+
+            // Користувачі з цією групою
             List<Long> ids = userRepository.findIdsByGroupCode(group);
             if (ids != null) targetIds.addAll(ids);
+
+            // Групові чати з цією групою
+            List<com.infonure.infonure_bot.model.GroupData> groupChats =
+                    groupDataRepository.findByGroupCodeAndRemindersEnabledTrue(group);
+            if (groupChats != null) {
+                for (com.infonure.infonure_bot.model.GroupData gd : groupChats) {
+                    targetIds.add(gd.getId());
+                }
+            }
         }
         else if (audience.startsWith(BotConstants.AUDIENCE_FACULTY_PREFIX)) {
             String faculty = audience.replace(BotConstants.AUDIENCE_FACULTY_PREFIX, "");
             Set<String> facultyGroups = scheduleService.getGroupsByFaculty(faculty);
             if (facultyGroups != null && !facultyGroups.isEmpty()) {
+                // Користувачі факультету
                 List<Long> ids = userRepository.findIdsByGroupCodes(facultyGroups);
                 if (ids != null) targetIds.addAll(ids);
+
+                // Групові чати факультету
+                for (String groupCode : facultyGroups) {
+                    List<com.infonure.infonure_bot.model.GroupData> gChats =
+                            groupDataRepository.findByGroupCodeAndRemindersEnabledTrue(groupCode);
+                    if (gChats != null) {
+                        gChats.forEach(gd -> targetIds.add(gd.getId()));
+                    }
+                }
             }
         }
 
@@ -324,10 +354,11 @@ public class UserInputHandler {
             try {
                 responses.add(messageFactory.createMessage(adminId, reportDetails.toString()));
 
-                CopyMessage copy = new CopyMessage();
-                copy.setChatId(adminId.toString());
-                copy.setFromChatId(message.getChatId().toString());
-                copy.setMessageId(message.getMessageId());
+                CopyMessage copy = CopyMessage.builder()
+                        .chatId(adminId.toString())
+                        .fromChatId(message.getChatId().toString())
+                        .messageId(message.getMessageId())
+                        .build();
                 responses.add(copy);
 
                 adminsNotified++;
@@ -357,10 +388,11 @@ public class UserInputHandler {
         }
 
         try {
-            CopyMessage copy = new CopyMessage();
-            copy.setChatId(targetId.toString());
-            copy.setFromChatId(chatId.toString());
-            copy.setMessageId(message.getMessageId());
+            CopyMessage copy = CopyMessage.builder()
+                    .chatId(targetId.toString())
+                    .fromChatId(chatId.toString())
+                    .messageId(message.getMessageId())
+                    .build();
             responses.add(copy);
 
             responses.add(messageFactory.createMessage(chatId, "Надіслано."));

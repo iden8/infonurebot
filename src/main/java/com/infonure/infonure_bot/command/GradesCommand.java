@@ -6,8 +6,8 @@ import com.infonure.infonure_bot.service.MoodleService;
 import com.infonure.infonure_bot.view.KeyboardFactory;
 import com.infonure.infonure_bot.view.MessageFactory;
 import org.springframework.stereotype.Component;
-import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
-import org.telegram.telegrambots.meta.api.objects.Message;
+import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
+import org.telegram.telegrambots.meta.api.objects.message.Message;
 
 import java.util.List;
 import java.util.Map;

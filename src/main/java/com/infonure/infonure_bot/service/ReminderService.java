@@ -80,7 +80,6 @@ public class ReminderService {
 
         if (groupCode == null) return;
 
-        // 1. Отримуємо реальну назву предмета з масиву subjects
         String lessonName = "Невідомий предмет";
         if (event.has("subject_id")) {
             long subjectId = event.get("subject_id").getAsLong();
