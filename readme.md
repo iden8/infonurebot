@@ -69,30 +69,32 @@ The project follows a classic N-Tier architecture using modern design patterns:
 
 ## Local Setup & Installation
 
-1. **Clone the repository:**
-   ```bash
-   git clone [https://github.com/your-username/infonure_bot.git](https://github.com/your-username/infonure_bot.git)
-   cd infonure_bot
+1. **Clone the repository**:
 
-2. Database Setup:
-Create a PostgreSQL database (e.g., postgres) and the tg_bot schema.
+```bash
+git clone https://github.com/iden8/infonurebot.git
+cd infonure_bot
+```
 
-Configuration:
-Update your credentials in src/main/resources/application.properties:
-bot.name=YourBotName
-bot.token=YOUR_TELEGRAM_BOT_TOKEN
-bot.admin.ids=123456789 # Comma-separated Admin IDs
+2. **Create config file**:
 
-spring.datasource.url=jdbc:postgresql://localhost:5432/postgres
-spring.datasource.username=your_username
-spring.datasource.password=your_password
+```bash
+cp .env.example .env
+```
+Fill in the values with your data.
 
-4. Build and Run (Maven):
-./mvnw clean install
-./mvnw spring-boot:run
+3. **Run with Docker**:
 
-## Licensing & Commercial Use
+```bash
+docker compose up -d
+```
 
-**Commercial Use:** This software is **NOT open-source**. All rights are reserved. If you are interested in using this project for commercial purposes or purchasing the full version, please contact me directly at isvlalev@gmail.com or t.me/iden89.
+This will automatically build the app, create the PostgreSQL database and start the bot.
 
-Copyright (c) 2025 Vladyslav Sheveliev, https://github.com/iden8. All rights reserved.
+### Licensing & Commercial Use
+
+Copyright (c) 2025 Vladyslav Sheveliev
+
+This project is licensed under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/).
+You are free to use, copy, fork and modify this software for non-commercial purposes only.
+Commercial use is strictly prohibited. Attribution required: https://github.com/iden8
