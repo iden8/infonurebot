@@ -9,6 +9,11 @@
 
 </div>
 
+<<<<<<< HEAD
+=======
+[🇺🇦 Читати українською](README_UA.md)
+
+>>>>>>> faac9e9 (readme and license)
 **InfoNureBot** is a multi-functional Telegram bot designed for students of Kharkiv National University of Radio Electronics (NURE). The bot provides convenient access to class schedules (integrated with CIST) and the NURE Distance Learning system (Moodle API), as well as tools for student chat administration.
 
 ## Core Functionality
@@ -93,6 +98,14 @@ This will automatically build the app, create the PostgreSQL database and start 
 
 Copyright (c) 2025 Vladyslav Sheveliev
 
+<<<<<<< HEAD
 This project is licensed under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/).
 You are free to use, copy, fork and modify this software for non-commercial purposes only.
 Commercial use is strictly prohibited. Attribution required: https://github.com/iden8
+=======
+This project is licensed under CC BY-NC 4.0.
+You are free to use, copy, fork and modify this software for non-commercial purposes only.
+Commercial use is strictly prohibited. Attribution required: https://github.com/iden8
+
+Full license: https://creativecommons.org/licenses/by-nc/4.0/
+>>>>>>> faac9e9 (readme and license)
