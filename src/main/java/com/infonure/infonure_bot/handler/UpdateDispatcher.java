@@ -15,6 +15,7 @@ import org.telegram.telegrambots.meta.api.methods.botapimethods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.objects.message.MaybeInaccessibleMessage;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
+import com.infonure.infonure_bot.service.ChatMemberService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,12 +32,14 @@ public class UpdateDispatcher {
     private final InfoNureBot infoNureBot;
     private final UserInputHandler userInputHandler;
     private final CallbackQueryHandler callbackQueryHandler;
+    private final ChatMemberService chatMemberService;
 
     private final Map<String, BotCommand> commandMap;
 
     public UpdateDispatcher(UserService userService, UserStateService userStateService,
                             MessageFactory messageFactory, @Lazy InfoNureBot infoNureBot,
                             UserInputHandler userInputHandler, CallbackQueryHandler callbackQueryHandler,
+                            ChatMemberService chatMemberService,
                             List<BotCommand> commands) {
         this.userService = userService;
         this.userStateService = userStateService;
@@ -44,6 +47,7 @@ public class UpdateDispatcher {
         this.infoNureBot = infoNureBot;
         this.userInputHandler = userInputHandler;
         this.callbackQueryHandler = callbackQueryHandler;
+        this.chatMemberService = chatMemberService;
 
         this.commandMap = commands.stream()
                 .collect(Collectors.toMap(BotCommand::getCommandIdentifier, cmd -> cmd));
@@ -60,6 +64,17 @@ public class UpdateDispatcher {
                 if (update.getMessage().getChat() != null && (update.getMessage().getChat().isGroupChat() || update.getMessage().getChat().isSuperGroupChat()))
                     userService.regChat(update.getMessage().getChat().getId(), update.getMessage().getChat().getTitle());
 
+                if (update.getMessage().getFrom() != null
+                        && update.getMessage().getChat() != null
+                        && (update.getMessage().getChat().isGroupChat()
+                        || update.getMessage().getChat().isSuperGroupChat())) {
+
+                    chatMemberService.trackMember(
+                            update.getMessage().getChat().getId(),
+                            update.getMessage().getFrom().getId(),
+                            update.getMessage().getFrom().getFirstName()
+                    );
+                }
 
                 if (userService.isEntityBanned(update.getMessage().getFrom().getId())) return responses;
                 if (userService.isEntityBanned(update.getMessage().getChat().getId())) return responses;
@@ -125,12 +140,7 @@ public class UpdateDispatcher {
                 }
                 handleCommand(message, commandText, responses);
             } else {
-                // Маршрутизація для введення станів
-                if (currentState != UserState.IDLE) {
-                    userInputHandler.handleInput(currentState, message, responses);
-                } else if (text != null) {
-                    responses.add(messageFactory.createMessage(message.getChatId(), "Не очікується введення тексту для поточного стану. Використайте /cancel, щоб скасувати."));
-                }
+                if (currentState != UserState.IDLE) userInputHandler.handleInput(currentState, message, responses);
             }
         } catch (ObjectOptimisticLockingFailureException e) {
             log.warn("Ignored concurrent request from user {}: Optimistic Lock Exception", userId);

@@ -43,7 +43,7 @@ public class InfoNureBot implements SpringLongPollingBot, LongPollingSingleThrea
         this.botToken = botToken;
         this.botUsername = botUsername;
         this.adminIds = adminIds;
-        // Ініціалізуємо клієнт явно
+
         this.telegramClient = new OkHttpTelegramClient(botToken);
     }
 
@@ -52,7 +52,6 @@ public class InfoNureBot implements SpringLongPollingBot, LongPollingSingleThrea
         return this.botToken;
     }
 
-    // ВИДАЛИЛИ @Override, бо в v10 цього методу немає в базовому інтерфейсі
     public String getBotUsername() {
         return this.botUsername;
     }
@@ -89,6 +88,7 @@ public class InfoNureBot implements SpringLongPollingBot, LongPollingSingleThrea
                 new BotCommand("/ref_info_edit", "Змінити довідку групи"),
                 new BotCommand("/faq", "FAQ по боту"),
                 new BotCommand("/report", "Зв'язок з адміном"),
+                new BotCommand("/tagall", "Тегнути всіх учасників чату"),
                 new BotCommand("/dl_login", "Інтеграція з DL"),
                 new BotCommand("/dl_exit", "Вийти в боті з DL"),
                 new BotCommand("/adt", "Масова розсилка (тільки для адмінів)"),
