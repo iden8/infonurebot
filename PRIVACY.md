@@ -1,8 +1,8 @@
 # Політика конфіденційності InfoNureBot
 
 Оновлено: 31.10.2026  
-[github](https://github.com/iden8)  
-контакт оператора: isvlalev@proton.me
+[Github](https://github.com/iden8)  
+Контакт оператора: isvlalev@proton.me
 
 ---
 
