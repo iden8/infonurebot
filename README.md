@@ -93,8 +93,14 @@ This will automatically build the app, create the PostgreSQL database and start 
 
 Copyright (c) 2025 Vladyslav Sheveliev
 
+
+
 This project is licensed under CC BY-NC 4.0.
 You are free to use, copy, fork and modify this software for non-commercial purposes only.
 Commercial use is strictly prohibited. Attribution required: https://github.com/iden8
 
 Full license: https://creativecommons.org/licenses/by-nc/4.0/
+
+## Privacy Policy
+
+[Privacy Policy](PRIVACY.md)
