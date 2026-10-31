@@ -2,7 +2,7 @@
 
 Оновлено: 31.10.2026  
 [github](https://github.com/iden8)  
-isvlalev@proton.me
+контакт оператора: isvlalev@proton.me
 
 ---
 
